@@ -1,0 +1,14 @@
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+# данные - большие и воспроизводимые
+corpus/
+results/
+demo_work/
+*.jsonl
+ai_repos.txt
+human_repos.txt
+paired_repos.txt
+repo_meta.json
+dashboard.html

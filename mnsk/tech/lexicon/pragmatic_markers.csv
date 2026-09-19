@@ -1,0 +1,13 @@
+category,explanatory,forms,note
+cause,1,because|since|due to|owing to|as a result|that's why|which is why|hence|therefore|thus|so that|the reason,причина: отвечает на вопрос ПОЧЕМУ
+purpose,1,in order to|to avoid|to prevent|to make sure|to keep|so we don't|so it doesn't|so that|for the sake of|to allow|to support,цель: ЗАЧЕМ сделано именно так
+contrast,1,but|however|although|though|even though|whereas|despite|instead of|rather than|unlike|unfortunately|actually|in fact,противопоставление: объясняет отступление от ожидаемого
+warning,1,careful|beware|warning|caution|danger|unsafe|must not|do not|don't|never|watch out|be careful|note that|note:|important|gotcha|caveat|careful with|keep in mind,предупреждение: адресовано будущему читателю
+condition,1,unless|otherwise|only if|in case|assuming|assume|assumes|provided that|as long as|whenever,условие применимости
+history,1,for now|temporary|temporarily|workaround|work around|hack|kludge|legacy|deprecated|until|later|eventually|at the moment|currently|no longer|used to|previously|historically|backward compatibility|backwards compatibility|back compat,история и провизорность: почему код такой сейчас
+reference,1,see|refer to|according to|as per|per the|spec|rfc|cf.|issue|ticket|pull request|upstream|bug in,ссылка на внешний источник
+tag,1,todo|fixme|xxx|todo:|fixme:|xxx:,служебные теги долга; BUG/OPTIMIZE/REVIEW/HACK учитываются только заглавными (см. metrics.py)
+hedge,0,probably|maybe|perhaps|might|seems|appears|likely|not sure|i think|i guess|apparently|supposedly|somehow|presumably|hopefully|unclear|no idea|not certain,эпистемическая оговорка (не «почему», а степень уверенности)
+modal,0,should|must|need to|needs to|have to|has to|shall|ought to|cannot|can't|required|mandatory,деонтическая модальность
+first_person,0,i|i'm|i've|i'll|i'd|we|we're|we've|we'll|our|my|let's,личное присутствие автора
+negation,0,not|no|never|don't|doesn't|didn't|won't|can't|cannot|isn't|aren't|without|nothing|neither|nor,отрицание
