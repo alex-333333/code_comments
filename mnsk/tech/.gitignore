@@ -2,7 +2,6 @@
 __pycache__/
 *.pyc
 .pytest_cache/
-# данные - большие и воспроизводимые
 corpus/
 results/
 demo_work/
