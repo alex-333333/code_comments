@@ -1,0 +1,873 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Комментарии AI и человека</title>
+<style>
+/* Палитра: слоты 1-2 проверенной категориальной палитры (валидатор: CVD ΔE 24.7 светлая / 26.8 тёмная тема).
+   AI - всегда синий, human - всегда оранжевый, во всех графиках. Цвет привязан к сущности, а не к порядку. */
+:root {
+  color-scheme: light;
+  --page: #f9f9f7; --surface: #fcfcfb; --ink: #0b0b0b; --ink2: #52514e; --muted: #6f6d67;
+  --grid: #e1e0d9; --axis: #c3c2b7; --border: rgba(11,11,11,.10);
+  --ai: #2a78d6; --human: #eb6834;
+  --c-ref: #4a3aa7; --c-expl: #1baf7a; --c-other: #b9b8ae; --c-none: #dddcd3;
+  --mark: rgba(42,120,214,.20); --mark2: rgba(42,120,214,.09); --novel: #c8571f;
+  --warn-bg: #fff6e0; --warn-ink: #6b4a00; --demo-bg: #ffe9d6; --demo-ink: #8a3a00;
+}
+@media (prefers-color-scheme: dark) {
+  :root:where(:not([data-theme="light"])) {
+    color-scheme: dark;
+    --page: #0d0d0d; --surface: #1a1a19; --ink: #ffffff; --ink2: #c3c2b7; --muted: #a09e96;
+    --grid: #2c2c2a; --axis: #383835; --border: rgba(255,255,255,.10);
+    --ai: #3987e5; --human: #d95926;
+    --c-ref: #9085e9; --c-expl: #199e70; --c-other: #55544f; --c-none: #34342f;
+    --mark: rgba(57,135,229,.35); --mark2: rgba(57,135,229,.16); --novel: #f0956a;
+    --warn-bg: #3a2f10; --warn-ink: #f3d68a; --demo-bg: #45250f; --demo-ink: #ffc9a0;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --page: #0d0d0d; --surface: #1a1a19; --ink: #ffffff; --ink2: #c3c2b7; --muted: #a09e96;
+  --grid: #2c2c2a; --axis: #383835; --border: rgba(255,255,255,.10);
+  --ai: #3987e5; --human: #d95926;
+  --c-ref: #9085e9; --c-expl: #199e70; --c-other: #55544f; --c-none: #34342f;
+  --mark: rgba(57,135,229,.35); --mark2: rgba(57,135,229,.16); --novel: #f0956a;
+  --warn-bg: #3a2f10; --warn-ink: #f3d68a; --demo-bg: #45250f; --demo-ink: #ffc9a0;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--page); color: var(--ink); font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+.wrap { max-width: 1120px; margin: 0 auto; padding: 20px 16px 64px; }
+h1 { font-size: 24px; margin: 0 0 4px; font-weight: 650; }
+h2 { font-size: 17px; margin: 0 0 4px; font-weight: 650; }
+.sub { color: var(--ink2); margin: 0 0 16px; }
+.muted { color: var(--muted); }
+.banner { border-radius: 10px; padding: 10px 14px; margin: 0 0 14px; font-size: 14px; }
+.banner.demo { background: var(--demo-bg); color: var(--demo-ink); font-weight: 600; }
+.banner.warn { background: var(--warn-bg); color: var(--warn-ink); }
+.bar { display: flex; flex-wrap: wrap; gap: 14px 22px; align-items: center; background: var(--surface); border: 1px solid var(--border);
+  border-radius: 12px; padding: 10px 14px; margin-bottom: 16px; position: sticky; top: 0; z-index: 5; }
+.bar label { font-size: 13px; color: var(--ink2); display: flex; align-items: center; gap: 8px; }
+select, button, input[type=range] { font: inherit; color: var(--ink); }
+select, button { background: var(--page); border: 1px solid var(--axis); border-radius: 8px; padding: 4px 10px; cursor: pointer; }
+button[aria-pressed="true"] { background: var(--ink); color: var(--surface); border-color: var(--ink); }
+input[type=range] { accent-color: var(--ai); width: 150px; }
+.theta { font-variant-numeric: tabular-nums; min-width: 2.6em; display: inline-block; font-weight: 600; color: var(--ink); }
+.grid { display: grid; gap: 16px; }
+.g4 { grid-template-columns: repeat(4, 1fr); } .g2 { grid-template-columns: repeat(2, 1fr); }
+@media (max-width: 820px) { .g4 { grid-template-columns: repeat(2, 1fr); } .g2 { grid-template-columns: 1fr; } .bar { position: static; } }
+@media (max-width: 480px) { .g4 { grid-template-columns: 1fr; } }
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 16px; min-width: 0; }
+.tile .big { font-size: 30px; font-weight: 650; line-height: 1.15; }
+.tile .lbl { font-size: 13px; color: var(--ink2); margin-bottom: 4px; }
+.tile .row { display: flex; gap: 22px; align-items: flex-start; flex-wrap: wrap; }
+.tile .who { font-size: 12.5px; color: var(--ink2); font-weight: 600; }
+.tile .sub2 { font-size: 11.5px; color: var(--muted); margin-top: 6px; }
+.tile .big.md { font-size: 22px; }
+.tile .small { font-size: 12.5px; color: var(--muted); margin-top: 4px; }
+.dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 6px; }
+.dot.ai { background: var(--ai); } .dot.human { background: var(--human); }
+section { margin-top: 26px; }
+.legend { display: flex; gap: 16px; flex-wrap: wrap; font-size: 13px; color: var(--ink2); margin: 6px 0 8px; }
+svg text { font: 11.5px system-ui, sans-serif; fill: var(--muted); }
+svg .axis line, svg .axis path { stroke: var(--axis); }
+svg .gridl { stroke: var(--grid); stroke-width: 1; }
+svg .lbl-ai { fill: var(--ink); font-weight: 600; font-size: 12px; }
+.hrow { display: grid; grid-template-columns: minmax(70px, 150px) minmax(0, 1fr); gap: 10px; align-items: center; margin: 6px 0; font-size: 13.5px; }
+.hrow.wide { grid-template-columns: minmax(90px, 190px) minmax(0, 1fr); }
+/* min-width: 0 - иначе ячейка сетки не сжимается уже своего содержимого и страница получает горизонтальную прокрутку */
+.hrow > *, .pairline, .pairline .track { min-width: 0; }
+.val.cap { white-space: normal; margin: 2px 0 0; }   /* .val.cap, а не .cap: иначе .val ниже по файлу при равной специфичности вернёт nowrap */
+.track { display: flex; gap: 2px; height: 18px; background: transparent; }
+.seg { height: 100%; border-radius: 0 4px 4px 0; min-width: 0; position: relative; }
+.seg:first-child { border-radius: 0 4px 4px 0; }
+.stack .seg { border-radius: 3px; }
+.pair { display: grid; gap: 3px; }
+.pair .track { height: 11px; } .pair .track .seg { border-radius: 0 3px 3px 0; }
+.val { font-size: 12px; color: var(--ink2); margin-left: 8px; align-self: center; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.pairline { display: flex; align-items: center; }
+table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--grid); vertical-align: top; }
+th { font-weight: 600; color: var(--ink2); cursor: default; white-space: nowrap; }
+th.sort { cursor: pointer; } th.sort:hover { color: var(--ink); }
+td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+.chip { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; padding: 1px 8px; border-radius: 999px; border: 1px solid var(--axis); color: var(--ink2); white-space: nowrap; }
+.tablewrap { overflow-x: auto; }
+details { margin-top: 10px; } summary { cursor: pointer; color: var(--ink2); font-size: 13px; }
+.cloud { width: 100%; height: auto; display: block; }
+.cloud text { cursor: default; font-weight: 600; }
+.ex { border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; background: var(--page); }
+.ex .cm { font-size: 14px; margin-bottom: 6px; }
+.ex pre { margin: 0; padding: 8px 10px; background: var(--surface); border: 1px solid var(--grid); border-radius: 8px; overflow-x: auto;
+  font: 12px/1.45 ui-monospace, "Cascadia Mono", Consolas, monospace; color: var(--ink2); }
+.ex .meta { font-size: 12px; color: var(--muted); margin-top: 6px; display: flex; gap: 10px; flex-wrap: wrap; }
+.w1 { background: var(--mark); border-radius: 3px; } .w2 { background: var(--mark2); border-radius: 3px; }
+.w3 { border-bottom: 2px solid var(--novel); }
+#tip { position: fixed; pointer-events: none; z-index: 20; background: var(--ink); color: var(--surface); font-size: 12.5px; padding: 6px 9px;
+  border-radius: 7px; max-width: 280px; opacity: 0; transition: opacity .08s; }
+.note { font-size: 12.5px; color: var(--muted); margin: 8px 0 0; }
+.hidden { display: none !important; }
+.def { font-size: 13.5px; color: var(--ink2); } .def code { background: var(--page); padding: 1px 5px; border-radius: 4px; border: 1px solid var(--grid); }
+.gloss { border-bottom: 1px dotted var(--muted); cursor: help; }
+.grouptag { font-size: 11.5px; color: var(--muted); border: 1px solid var(--border); border-radius: 999px; padding: 0 7px; white-space: nowrap; }
+.filters { display: flex; gap: 12px; flex-wrap: wrap; margin: 8px 0 10px; font-size: 13px; align-items: center; }
+footer { margin-top: 30px; font-size: 12.5px; color: var(--muted); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Комментарии AI и человека: лексический анализ</h1>
+  <p class="sub" id="subtitle"></p>
+  <p class="note">Термины с <span class="gloss" tabindex="0" id="gloss-demo">пунктирным подчёркиванием</span> - наведите курсор или нажмите Tab, чтобы увидеть объяснение простыми словами.</p>
+  <div id="banners"></div>
+
+  <div class="bar" role="group" aria-label="Параметры отображения">
+    <label>Язык <select id="lang"></select></label>
+    <label>Метрика
+      <span><button id="m-strict" aria-pressed="true" title="Только совпадения слов (стемы)">overlap</button>
+      <button id="m-ext" aria-pressed="false" title="С учётом парафраз синтаксиса: for → loop, if → check…">overlap ext</button></span></label>
+    <label>Порог <span class="gloss" title="Порог θ: при каком overlap комментарий считают «пересказом» (referential).">θ</span> <input type="range" id="theta" min="0.2" max="0.9" step="0.01"><span class="theta" id="thetaV"></span></label>
+    <button id="themeBtn" aria-pressed="false" title="Переключить тему">Тёмная тема</button>
+  </div>
+
+  <div class="grid g4" id="kpis"></div>
+
+  <section>
+    <div class="card">
+      <h2>Плотность комментариев</h2>
+      <p class="sub">Сколько комментариев приходится на 100 строк кода, добавленных коммитами. Считается одинаково для обоих корпусов; в знаменателе все добавленные строки, включая файлы без единого комментария. Фильтр «Язык» действует; порог θ и метрика - нет.</p>
+      <div id="density-body"></div>
+    </div>
+  </section>
+
+  <section>
+    <div class="card">
+      <h2>Насколько комментарий пересказывает код</h2>
+      <p class="sub">overlap - доля содержательных слов комментария, которые уже есть в соседнем коде. Чем правее, тем больше комментарий повторяет код. Столбики - доли комментариев в диапазонах шириной 0.05.</p>
+      <div class="legend"><span><span class="dot ai"></span>AI</span><span><span class="dot human"></span>Человек</span><span>Серая область справа от θ - «пересказ»</span></div>
+      <div id="chart-hist"></div>
+      <details><summary>Таблица данных</summary><div class="tablewrap" id="tbl-hist"></div></details>
+      <p class="note" id="note-hist"></p>
+      <p class="note" id="note-mass"></p>
+    </div>
+  </section>
+
+  <section class="grid g2">
+    <div class="card">
+      <h2>Чувствительность к порогу</h2>
+      <p class="sub">Доля referential при разных θ. Если линии не пересекаются на всём диапазоне, вывод не зависит от выбора порога.</p>
+      <div class="legend"><span><span class="dot ai"></span>AI</span><span><span class="dot human"></span>Человек</span></div>
+      <div id="chart-sens"></div>
+      <p class="note" id="note-sens"></p>
+      <details><summary>Таблица данных</summary><div class="tablewrap" id="tbl-sens"></div></details>
+    </div>
+    <div class="card">
+      <h2>Функция комментария</h2>
+      <p class="sub">Referential - пересказ кода (overlap ≥ θ, нет маркеров «почему»). Explanatory - есть маркер причины, цели, предупреждения, ссылки.</p>
+      <div class="legend" id="legend-mix"></div>
+      <div id="chart-mix"></div>
+      <details><summary>Таблица данных</summary><div class="tablewrap" id="tbl-mix"></div></details>
+    </div>
+  </section>
+
+  <section>
+    <div class="card">
+      <h2>Два облака слов</h2>
+      <div class="filters">
+        <span class="muted">Размер слова:</span>
+        <button id="w-dist" aria-pressed="true" title="Чем корпус отличается от другого (log-odds с информативным априором)">характерность</button>
+        <button id="w-freq" aria-pressed="false">частота</button>
+      </div>
+      <div class="grid g2">
+        <div><h2 style="font-size:15px"><span class="dot ai"></span>AI</h2><svg id="cloud-ai" class="cloud" viewBox="0 0 520 300" role="img" aria-label="Облако слов AI"></svg></div>
+        <div><h2 style="font-size:15px"><span class="dot human"></span>Человек</h2><svg id="cloud-human" class="cloud" viewBox="0 0 520 300" role="img" aria-label="Облако слов человека"></svg></div>
+      </div>
+      <details><summary>Таблица данных</summary><div class="tablewrap" id="tbl-words"></div></details>
+      <p class="note" id="note-words"></p>
+    </div>
+  </section>
+
+  <section class="grid g2">
+    <div class="card">
+      <h2>Типы комментариев</h2>
+      <p class="sub">Доля от всех комментариев источника. inline - в конце строки кода, leading - над кодом, block - /* … */, detached - не привязан к коду, doc - докстринг / JSDoc / Javadoc.</p>
+      <div class="legend"><span><span class="dot ai"></span>AI</span><span><span class="dot human"></span>Человек</span></div>
+      <div id="chart-kinds"></div>
+      <details><summary>Таблица данных</summary><div class="tablewrap" id="tbl-kinds"></div></details>
+      <p class="note" id="note-kinds"></p>
+    </div>
+    <div class="card">
+      <h2>Маркеры функции комментария</h2>
+      <p class="sub">Сколько комментариев из 100 содержат маркер. Тёмная точка - различие значимо после поправки на множественные сравнения (q &lt; 0.05). Маркеры относятся к разным лингвистическим категориям - группа и источник классификации показаны в таблице и подсказке.</p>
+      <div class="filters">
+        <label>Группа <select id="marker-group"></select></label>
+      </div>
+      <div class="legend"><span><span class="dot ai"></span>AI</span><span><span class="dot human"></span>Человек</span></div>
+      <div id="chart-markers"></div>
+      <details><summary>Таблица данных</summary><div class="tablewrap" id="tbl-markers"></div></details>
+    </div>
+  </section>
+
+  <section>
+    <div class="card">
+      <h2>Идиомы и коннотация</h2>
+      <p class="sub">Словарь составлен вручную (lexicon/idioms.csv) и проверяется данными. Значение - на 1000 комментариев.</p>
+      <div class="filters">
+        <label>Категория <select id="idiom-cat"></select></label>
+        <label>Коннотация <select id="idiom-con"><option value="">все</option><option value="negative">− негативная</option><option value="neutral">· нейтральная</option><option value="positive">+ позитивная</option></select></label>
+        <span class="muted" id="idiom-conn-sum"></span>
+      </div>
+      <div class="tablewrap"><table id="idiom-table"></table></div>
+      <p class="note">q - значимость по критерию Фишера с поправкой Бенджамини-Хохберга. Пустая ячейка q означает, что событий слишком мало для вывода.</p>
+    </div>
+  </section>
+
+  <section>
+    <div class="card">
+      <h2>Примеры: комментарий и код рядом</h2>
+      <p class="sub">Слова комментария, найденные в коде, подсвечены: <span class="w1">точное совпадение</span>, <span class="w2">совпадение через парафразу</span>, <span class="w3">слово, которого в коде нет</span>.</p>
+      <div class="filters">
+        <label>Источник <select id="ex-src"><option value="ai">AI</option><option value="human">Человек</option></select></label>
+        <label>Полоса overlap <select id="ex-band"><option value="high">высокий</option><option value="mid">средний</option><option value="low">низкий</option></select></label>
+        <button id="ex-more">Другие примеры</button>
+      </div>
+      <div class="grid g2" id="examples"></div>
+    </div>
+  </section>
+
+  <section class="grid g2">
+    <div class="card">
+      <h2>Стиль и форма</h2>
+      <div class="tablewrap" id="style-table"></div>
+    </div>
+    <div class="card">
+      <h2><span class="gloss" id="doc-title-gloss" tabindex="0">Докстринги</span> (отдельно)</h2>
+      <p class="sub">Описывают функцию целиком, поэтому в основную метрику не входят.</p>
+      <div class="tablewrap" id="docs-table"></div>
+    </div>
+  </section>
+
+  <section>
+    <div class="card def">
+      <h2>Как это считается</h2>
+      <details open><summary>Определения</summary>
+        <p><b>overlap</b> = |стемы содержательных слов комментария ∩ стемы кода| / |стемы содержательных слов комментария|. Служебные слова не считаются; идентификаторы <code>snake_case</code> и <code>camelCase</code> разбираются на слова; сравнение по стемам (Snowball). Комментарии короче 3 содержательных слов и комментарии без привязанного кода в overlap не участвуют.</p>
+        <p><b>Referential</b>: overlap ≥ θ и нет маркеров «почему». <b>Explanatory</b>: есть хотя бы один маркер причины, цели, противопоставления, предупреждения, условия, истории, ссылки или тег TODO/FIXME. <b>Other</b>: остальное.</p>
+        <p><b>Что учитывается.</b> Только комментарии, целиком добавленные атрибутируемым коммитом; без лицензий, директив линтеров, закомментированного кода и не-английских текстов; без точных дублей внутри репозитория.</p>
+        <p><b>Доверительный интервал</b> для разницы долей считается бутстрепом по репозиториям, а не по комментариям: комментарии одного проекта не независимы.</p>
+      </details>
+      <details><summary>Классификация маркеров и идиом</summary><div id="group-defs" class="def"></div></details>
+      <details><summary>Ограничения</summary><div id="limits"></div></details>
+    </div>
+  </section>
+  <footer id="footer"></footer>
+</div>
+<div id="tip" role="tooltip"></div>
+
+<script>
+const DATA = {"summary": {"sizes": {"ai": {"comments": 280, "main": 192, "docs": 88, "repos": 4}, "human": {"comments": 123, "main": 94, "docs": 29, "repos": 4}}, "langs": ["go", "java", "javascript", "python"], "overlap": {"bins": 100, "hist": {"ai": {"all": {"hist": [10, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 9, 0, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 30, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 59, 0, 0, 0, 0, 0, 0, 0, 0, 0, 5, 0, 0, 0, 0, 0, 11, 0, 0, 0, 0, 0, 0, 0, 0, 36, 0, 0, 0, 0, 26, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3], "hist_nocue": [3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 8, 0, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 30, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 59, 0, 0, 0, 0, 0, 0, 0, 0, 0, 5, 0, 0, 0, 0, 0, 11, 0, 0, 0, 0, 0, 0, 0, 0, 35, 0, 0, 0, 0, 24, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3], "hist_ext": [7, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 9, 0, 0, 0, 3, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 15, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 39, 0, 0, 0, 0, 0, 0, 0, 0, 70, 0, 0, 0, 0, 9, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 33], "hist_nocue_ext": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 8, 0, 0, 0, 3, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 15, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 39, 0, 0, 0, 0, 0, 0, 0, 0, 69, 0, 0, 0, 0, 9, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 31], "classified": 192, "cue": 11, "n": 192}, "go": {"hist": [2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 14, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 13, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], "hist_nocue": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 14, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 12, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], "hist_ext": [2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 27, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], "hist_nocue_ext": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 26, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], "classified": 32, "cue": 4, "n": 32}, "java": {"hist": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 10, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 10, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 11, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], "hist_nocue": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 10, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 10, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 11, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], "hist_ext": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 20, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 11], "hist_nocue_ext": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 20, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 11], "classified": 31, "cue": 0, "n": 31}, "javascript": {"hist": [2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 10, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 8, 0, 0, 0, 0, 0, 0, 0, 0, 10, 0, 0, 0, 0, 11, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3], "hist_nocue": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 10, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 8, 0, 0, 0, 0, 0, 0, 0, 0, 10, 0, 0, 0, 0, 9, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3], "hist_ext": [2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 8, 0, 0, 0, 0, 0, 0, 0, 0, 10, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 22], "hist_nocue_ext": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 8, 0, 0, 0, 0, 0, 0, 0, 0, 10, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 20], "classified": 44, "cue": 4, "n": 44}, "python": {"hist": [6, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 8, 0, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 35, 0, 0, 0, 0, 0, 0, 0, 0, 0, 5, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 13, 0, 0, 0, 0, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], "hist_nocue": [3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 8, 0, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 35, 0, 0, 0, 0, 0, 0, 0, 0, 0, 5, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 13, 0, 0, 0, 0, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], "hist_ext": [3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 8, 0, 0, 0, 3, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 15, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 11, 0, 0, 0, 0, 0, 0, 0, 0, 33, 0, 0, 0, 0, 9, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], "hist_nocue_ext": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 8, 0, 0, 0, 3, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 15, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 11, 0, 0, 0, 0, 0, 0, 0, 0, 33, 0, 0, 0, 0, 9, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], "classified": 85, "cue": 3, "n": 85}}, "human": {"all": {"hist": [57, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 8, 0, 3, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], "hist_nocue": [10, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], "hist_ext": [53, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 8, 0, 3, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 4, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], "hist_nocue_ext": [10, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], "classified": 72, "cue": 55, "n": 94}, "go": {"hist": [7, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], "hist_nocue": [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], "hist_ext": [5, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], "hist_nocue_ext": [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], "classified": 10, "cue": 6, "n": 14}, "java": {"hist": [8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], "hist_nocue": [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], "hist_ext": [8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], "hist_nocue_ext": [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], "classified": 10, "cue": 8, "n": 12}, "javascript": {"hist": [19, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], "hist_nocue": [4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], "hist_ext": [19, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], "hist_nocue_ext": [4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], "classified": 23, "cue": 18, "n": 31}, "python": {"hist": [23, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], "hist_nocue": [4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], "hist_ext": [21, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], "hist_nocue_ext": [4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], "classified": 29, "cue": 23, "n": 37}}}, "describe": {"overlap": {"ai": {"n": 192, "mean": 0.5358506944444444, "median": 0.5, "q1": 0.3333333333333333, "q3": 0.75}, "human": {"n": 72, "mean": 0.03373015873015873, "median": 0.0, "q1": 0.0, "q3": 0.0}}, "overlap_ext": {"ai": {"n": 192, "mean": 0.6790798611111111, "median": 0.75, "q1": 0.6666666666666666, "q3": 0.75}, "human": {"n": 72, "mean": 0.047619047619047616, "median": 0.0, "q1": 0.0, "q3": 0.125}}}, "mann_whitney": {"overlap": {"u": 13326.0, "z": 11.80379, "p": 0.0, "cliffs_delta": 0.92795, "n1": 192, "n2": 72, "effect": "большой"}, "overlap_ext": {"u": 13408.5, "z": 11.97391, "p": 0.0, "cliffs_delta": 0.93989, "n1": 192, "n2": 72, "effect": "большой"}}, "mass_points": {"ai": {"n": 192, "distinct": 10, "top": [[0.5, 59, 0.30729], [0.75, 36, 0.1875], [0.3333, 30, 0.15625], [0.8, 26, 0.13542]], "zero_share": 0.05208}, "human": {"n": 72, "distinct": 5, "top": [[0.0, 57, 0.79167], [0.125, 8, 0.11111], [0.1429, 3, 0.04167], [0.1667, 2, 0.02778]], "zero_share": 0.79167}}}, "referential": {"theta": 0.5, "mix": {"ai": {"referential": 137, "explanatory": 11, "other": 44, "undecided": 0, "classified": 192, "referential_share": 0.71354, "explanatory_share": 0.05729}, "human": {"referential": 0, "explanatory": 55, "other": 17, "undecided": 22, "classified": 72, "referential_share": 0.0, "explanatory_share": 0.76389}}, "mix_ext": {"ai": {"referential": 163, "explanatory": 11, "other": 18, "undecided": 0, "classified": 192, "referential_share": 0.84896, "explanatory_share": 0.05729}, "human": {"referential": 0, "explanatory": 55, "other": 17, "undecided": 22, "classified": 72, "referential_share": 0.0, "explanatory_share": 0.76389}}, "by_lang": {"go": {"ai": {"referential": 26, "explanatory": 4, "other": 2, "undecided": 0, "classified": 32, "referential_share": 0.8125, "explanatory_share": 0.125}, "human": {"referential": 0, "explanatory": 6, "other": 4, "undecided": 4, "classified": 10, "referential_share": 0.0, "explanatory_share": 0.6}}, "java": {"ai": {"referential": 21, "explanatory": 0, "other": 10, "undecided": 0, "classified": 31, "referential_share": 0.67742, "explanatory_share": 0.0}, "human": {"referential": 0, "explanatory": 8, "other": 2, "undecided": 2, "classified": 10, "referential_share": 0.0, "explanatory_share": 0.8}}, "javascript": {"ai": {"referential": 30, "explanatory": 4, "other": 10, "undecided": 0, "classified": 44, "referential_share": 0.68182, "explanatory_share": 0.09091}, "human": {"referential": 0, "explanatory": 18, "other": 5, "undecided": 8, "classified": 23, "referential_share": 0.0, "explanatory_share": 0.78261}}, "python": {"ai": {"referential": 60, "explanatory": 3, "other": 22, "undecided": 0, "classified": 85, "referential_share": 0.70588, "explanatory_share": 0.03529}, "human": {"referential": 0, "explanatory": 23, "other": 6, "undecided": 8, "classified": 29, "referential_share": 0.0, "explanatory_share": 0.7931}}}, "sensitivity": [{"theta": 0.2, "ai": 0.88542, "human": 0.02778, "ai_ext": 0.90104, "human_ext": 0.02778}, {"theta": 0.25, "ai": 0.88542, "human": 0.02778, "ai_ext": 0.88542, "human_ext": 0.02778}, {"theta": 0.3, "ai": 0.86979, "human": 0.02778, "ai_ext": 0.86979, "human_ext": 0.02778}, {"theta": 0.35, "ai": 0.71354, "human": 0.0, "ai_ext": 0.84896, "human_ext": 0.0}, {"theta": 0.4, "ai": 0.71354, "human": 0.0, "ai_ext": 0.84896, "human_ext": 0.0}, {"theta": 0.45, "ai": 0.71354, "human": 0.0, "ai_ext": 0.84896, "human_ext": 0.0}, {"theta": 0.5, "ai": 0.71354, "human": 0.0, "ai_ext": 0.84896, "human_ext": 0.0}, {"theta": 0.55, "ai": 0.40625, "human": 0.0, "ai_ext": 0.77083, "human_ext": 0.0}, {"theta": 0.6, "ai": 0.40625, "human": 0.0, "ai_ext": 0.77083, "human_ext": 0.0}, {"theta": 0.65, "ai": 0.38021, "human": 0.0, "ai_ext": 0.77083, "human_ext": 0.0}, {"theta": 0.7, "ai": 0.32292, "human": 0.0, "ai_ext": 0.56771, "human_ext": 0.0}, {"theta": 0.75, "ai": 0.32292, "human": 0.0, "ai_ext": 0.56771, "human_ext": 0.0}, {"theta": 0.8, "ai": 0.14062, "human": 0.0, "ai_ext": 0.20833, "human_ext": 0.0}], "bootstrap": {"referential": {"diff": 0.71354, "lo": 0.64011, "hi": 0.78571, "ratio": null, "ratio_lo": null, "ratio_hi": null, "share_a": 0.71354, "share_b": 0.0, "n_clusters": [4, 4]}, "explanatory": {"diff": -0.7066, "lo": -0.72241, "hi": -0.6873, "ratio": 0.075, "ratio_lo": 0.05632, "ratio_hi": 0.08923, "share_a": 0.05729, "share_b": 0.76389, "n_clusters": [4, 4]}}}, "tools": {"claude": {"n": 101, "mean_overlap": 0.53069, "referential": 71, "explanatory": 6, "other": 24, "undecided": 0, "classified": 101, "referential_share": 0.70297, "explanatory_share": 0.05941}, "copilot": {"n": 32, "mean_overlap": 0.5474, "referential": 25, "explanatory": 2, "other": 5, "undecided": 0, "classified": 32, "referential_share": 0.78125, "explanatory_share": 0.0625}, "cursor": {"n": 59, "mean_overlap": 0.53842, "referential": 41, "explanatory": 3, "other": 15, "undecided": 0, "classified": 59, "referential_share": 0.69492, "explanatory_share": 0.05085}}, "kinds": {"counts": {"ai": {"inline": 35, "leading": 157, "block": 0, "detached": 0, "doc": 88}, "human": {"inline": 15, "leading": 79, "block": 0, "detached": 0, "doc": 29}}, "chi2": {"chi2": 2.79173, "df": 2, "p": 0.24762, "cramers_v": 0.08323}, "by_lang": {"go": {"ai": {"inline": 14, "leading": 18, "block": 0, "detached": 0, "doc": 13}, "human": {"inline": 6, "leading": 8, "block": 0, "detached": 0, "doc": 7}}, "java": {"ai": {"inline": 0, "leading": 31, "block": 0, "detached": 0, "doc": 12}, "human": {"inline": 0, "leading": 12, "block": 0, "detached": 0, "doc": 3}}, "javascript": {"ai": {"inline": 7, "leading": 37, "block": 0, "detached": 0, "doc": 21}, "human": {"inline": 5, "leading": 26, "block": 0, "detached": 0, "doc": 9}}, "python": {"ai": {"inline": 14, "leading": 71, "block": 0, "detached": 0, "doc": 42}, "human": {"inline": 4, "leading": 33, "block": 0, "detached": 0, "doc": 10}}}}, "markers": [{"label": "cause", "ai_n": 4, "human_n": 4, "ai_per1k": 20.83333, "human_per1k": 42.55319, "odds_ratio": 0.48011, "p": 0.4456076078228696, "q": 0.4456076078228696, "explanatory": true, "note": "причина: отвечает на вопрос ПОЧЕМУ", "group": "discourse", "label_ru": "причина"}, {"label": "purpose", "ai_n": 4, "human_n": 5, "ai_per1k": 20.83333, "human_per1k": 53.19149, "odds_ratio": 0.38847, "p": 0.1601423596251858, "q": 0.17470075595474815, "explanatory": true, "note": "цель: ЗАЧЕМ сделано именно так", "group": "discourse", "label_ru": "цель"}, {"label": "contrast", "ai_n": 0, "human_n": 19, "ai_per1k": 0.0, "human_per1k": 202.12766, "odds_ratio": 0.01006, "p": 1.722908336414222e-10, "q": 6.891633345656889e-10, "explanatory": true, "note": "противопоставление: объясняет отступление от ожидаемого", "group": "discourse", "label_ru": "противопоставление"}, {"label": "condition", "ai_n": 0, "human_n": 6, "ai_per1k": 0.0, "human_per1k": 63.82979, "odds_ratio": 0.03536, "p": 0.001129279491105907, "q": 0.0016939192366588604, "explanatory": true, "note": "условие применимости", "group": "discourse", "label_ru": "условие"}, {"label": "reference", "ai_n": 3, "human_n": 8, "ai_per1k": 15.625, "human_per1k": 85.10638, "odds_ratio": 0.18796, "p": 0.006973422181359194, "q": 0.009297896241812258, "explanatory": true, "note": "ссылка на внешний источник", "group": "evidential", "label_ru": "ссылка на источник"}, {"label": "hedge", "ai_n": 0, "human_n": 4, "ai_per1k": 0.0, "human_per1k": 42.55319, "odds_ratio": 0.05224, "p": 0.011171830890660123, "q": 0.013406197068792147, "explanatory": false, "note": "эпистемическая оговорка (не «почему»", "group": "stance", "label_ru": "оговорка уверенности"}, {"label": "modal", "ai_n": 0, "human_n": 6, "ai_per1k": 0.0, "human_per1k": 63.82979, "odds_ratio": 0.03536, "p": 0.001129279491105907, "q": 0.0016939192366588604, "explanatory": false, "note": "деонтическая модальность", "group": "stance", "label_ru": "долженствование"}, {"label": "first_person", "ai_n": 0, "human_n": 20, "ai_per1k": 0.0, "human_per1k": 212.76596, "odds_ratio": 0.00944, "p": 4.839630158465525e-11, "q": 2.903778095079315e-10, "explanatory": false, "note": "личное присутствие автора", "group": "stance", "label_ru": "личное присутствие автора"}, {"label": "warning", "ai_n": 0, "human_n": 9, "ai_per1k": 0.0, "human_per1k": 95.74468, "odds_ratio": 0.02338, "p": 3.4236927758082295e-05, "q": 8.216862661939751e-05, "explanatory": true, "note": "предупреждение: адресовано будущему читателю", "group": "directive", "label_ru": "предупреждение читателю"}, {"label": "negation", "ai_n": 0, "human_n": 18, "ai_per1k": 0.0, "human_per1k": 191.48936, "odds_ratio": 0.01074, "p": 6.075518870513184e-10, "q": 1.8226556611539553e-09, "explanatory": false, "note": "отрицание", "group": "directive", "label_ru": "отрицание"}, {"label": "history", "ai_n": 4, "human_n": 28, "ai_per1k": 20.83333, "human_per1k": 297.87234, "odds_ratio": 0.0557, "p": 1.498823121889472e-11, "q": 1.7985877462673662e-10, "explanatory": true, "note": "история и провизорность: почему код такой сейчас", "group": "code_convention", "label_ru": "временность решения"}, {"label": "tag", "ai_n": 0, "human_n": 8, "ai_per1k": 0.0, "human_per1k": 85.10638, "odds_ratio": 0.02643, "p": 0.00011067285949700543, "q": 0.00022134571899401086, "explanatory": true, "note": "служебные теги долга; BUG/OPTIMIZE/REVIEW/HACK учитываются только заглавными (см. metrics.py)", "group": "code_convention", "label_ru": "тег техдолга (TODO/FIXME)"}], "idioms": [{"label": "workaround", "ai_n": 0, "human_n": 6, "ai_per1k": 0.0, "human_per1k": 63.82979, "odds_ratio": 0.03536, "p": 0.001129279491105907, "q": 0.09598875674400209, "category": "debt", "connotation": "negative", "note": "обход проблемы; частотный маркер человеческой истории кода", "group": "code_convention", "category_ru": "технический долг"}, {"label": "kludge", "ai_n": 0, "human_n": 5, "ai_per1k": 0.0, "human_per1k": 53.19149, "odds_ratio": 0.04227, "p": 0.003565477943828749, "q": 0.10102187507514789, "category": "debt", "connotation": "negative", "note": "", "group": "code_convention", "category_ru": "технический долг"}, {"label": "edge case", "ai_n": 0, "human_n": 5, "ai_per1k": 0.0, "human_per1k": 53.19149, "odds_ratio": 0.04227, "p": 0.003565477943828749, "q": 0.10102187507514789, "category": "tech_idiom", "connotation": "neutral", "note": "", "group": "jargon", "category_ru": "устойчивое выражение"}, {"label": "magic number", "ai_n": 0, "human_n": 4, "ai_per1k": 0.0, "human_per1k": 42.55319, "odds_ratio": 0.05224, "p": 0.011171830890660123, "q": 0.18992112514122209, "category": "debt", "connotation": "negative", "note": "", "group": "code_convention", "category_ru": "технический долг"}, {"label": "for now", "ai_n": 0, "human_n": 4, "ai_per1k": 0.0, "human_per1k": 42.55319, "odds_ratio": 0.05224, "p": 0.011171830890660123, "q": 0.18992112514122209, "category": "provisional", "connotation": "negative", "note": "провизорность", "group": "code_convention", "category_ru": "временное решение"}, {"label": "temporary", "ai_n": 0, "human_n": 3, "ai_per1k": 0.0, "human_per1k": 31.91489, "odds_ratio": 0.0679, "p": 0.0347431663962327, "q": 0.49219485727996326, "category": "provisional", "connotation": "negative", "note": "", "group": "code_convention", "category_ru": "временное решение"}, {"label": "hack", "ai_n": 0, "human_n": 2, "ai_per1k": 0.0, "human_per1k": 21.2766, "odds_ratio": 0.0961, "p": 0.1072506440927411, "q": 0.8287549770802722, "category": "debt", "connotation": "negative", "note": "самоназвание костыля", "group": "code_convention", "category_ru": "технический долг"}, {"label": "legacy", "ai_n": 0, "human_n": 2, "ai_per1k": 0.0, "human_per1k": 21.2766, "odds_ratio": 0.0961, "p": 0.1072506440927411, "q": 0.8287549770802722, "category": "debt", "connotation": "negative", "note": "", "group": "code_convention", "category_ru": "технический долг"}, {"label": "sadly", "ai_n": 0, "human_n": 2, "ai_per1k": 0.0, "human_per1k": 21.2766, "odds_ratio": 0.0961, "p": 0.1072506440927411, "q": 0.8287549770802722, "category": "expletive", "connotation": "negative", "note": "эмоциональная оценка", "group": "attitude", "category_ru": "эмоциональная реакция"}, {"label": "off by one", "ai_n": 0, "human_n": 2, "ai_per1k": 0.0, "human_per1k": 21.2766, "odds_ratio": 0.0961, "p": 0.1072506440927411, "q": 0.8287549770802722, "category": "tech_idiom", "connotation": "neutral", "note": "", "group": "jargon", "category_ru": "устойчивое выражение"}, {"label": "safe", "ai_n": 0, "human_n": 2, "ai_per1k": 0.0, "human_per1k": 21.2766, "odds_ratio": 0.0961, "p": 0.1072506440927411, "q": 0.8287549770802722, "category": "evaluative_pos", "connotation": "positive", "note": "", "group": "attitude", "category_ru": "положительная оценка"}], "groups": {"discourse": {"label_ru": "Дискурсивные маркеры", "gloss": "Слово связывает мысль комментария с рассуждением: показывает причину, цель, противопоставление или условие - как «потому что», «чтобы», «но», «если».", "source": "Fraser, B. (1999). What Are Discourse Markers? Journal of Pragmatics, 31, 931-952; Swan, M. Practical English Usage."}, "evidential": {"label_ru": "Отсылка к источнику", "gloss": "Слово показывает, что автор опирается не на собственное рассуждение, а на внешний текст: документацию, issue, спецификацию.", "source": "Hyland, K. (2005). Metadiscourse: Exploring Interaction in Writing. London: Continuum - категория evidentials."}, "stance": {"label_ru": "Авторская позиция", "gloss": "Слово не связывает части текста, а показывает присутствие автора: его уверенность, личное участие или долженствование.", "source": "Hyland, K. (2005). Metadiscourse: Exploring Interaction in Writing - категории hedges и self-mention."}, "directive": {"label_ru": "Обращение к читателю", "gloss": "Слово адресовано будущему читателю кода: предупреждает его или запрещает действие.", "source": "Searle, J. (1969). Speech Acts: An Essay in the Philosophy of Language. Cambridge University Press - директивные речевые акты."}, "code_convention": {"label_ru": "Условность кода (техдолг)", "gloss": "Не лингвистическая категория, а принятая в индустрии конвенция: слово или тег отмечает временное, неидеальное решение, которое автор сам признаёт недостаточным.", "source": "Potdar, A., Shihab, E. (2014). An Exploratory Study on Self-Admitted Technical Debt. Proc. ICSME 2014."}, "attitude": {"label_ru": "Оценка автора", "gloss": "Слово выражает эмоциональное или оценочное отношение автора к коду - положительное или отрицательное.", "source": "Hyland, K. (2005). Metadiscourse: Exploring Interaction in Writing - категория attitude markers."}, "register": {"label_ru": "Регистр ИИ-текста", "gloss": "Слово предположительно чаще встречается в текстах, написанных или дополненных языковой моделью. Это гипотеза, которую проверяют сами данные, а не готовый факт.", "source": "Liang, W. et al. (2024). Monitoring AI-Modified Content at Scale. Proc. ICML 2024 (arXiv:2403.07183)."}, "jargon": {"label_ru": "Отраслевой жаргон", "gloss": "Устойчивое выражение программистской среды. Не привязано к конкретной лингвистической категории - это общий словарь профессии.", "source": ""}}, "connotation": {"ai": {"negative": 0.0, "neutral": 0.0, "positive": 0.0}, "human": {"negative": 276.59574, "neutral": 74.46809, "positive": 21.2766}}, "idiom_categories": {"ai": {}, "human": {"tech_idiom": 74.46809, "debt": 202.12766, "provisional": 74.46809, "expletive": 21.2766, "evaluative_pos": 21.2766}}, "sentiment": {"ai": {"mean": -0.02483, "positive": 0.05208, "negative": 0.07812, "neutral": 0.86979}, "human": {"mean": -0.09246, "positive": 0.23404, "negative": 0.31915, "neutral": 0.44681}}, "style": {"ai": {"mean_words": 7.74479, "ends_with_period": 0.60417, "starts_upper": 1.0, "question": 0.0, "has_url": 0.0, "has_issue_ref": 0.0}, "human": {"mean_words": 8.78723, "ends_with_period": 0.73404, "starts_upper": 0.73404, "question": 0.0, "has_url": 0.0, "has_issue_ref": 0.02128}}, "verb_form": {"ai": {"imperative": 1.0, "third_person": 0.0, "gerund": 0.0, "none": 0.0}, "human": {"imperative": 0.29787, "third_person": 0.0, "gerund": 0.0, "none": 0.70213}}, "docs": {"ai": {"n": 88, "overlap": {"n": 88, "mean": 0.8632575757575758, "median": 0.8, "q1": 0.75, "q3": 1.0}, "referential": 86, "explanatory": 2, "other": 0, "undecided": 0, "classified": 88, "referential_share": 0.97727, "explanatory_share": 0.02273, "verb_third_person": 0.375}, "human": {"n": 29, "overlap": {"n": 29, "mean": 0.9109195402298851, "median": 1.0, "q1": 0.8, "q3": 1.0}, "referential": 28, "explanatory": 1, "other": 0, "undecided": 0, "classified": 29, "referential_share": 0.96552, "explanatory_share": 0.03448, "verb_third_person": 0.41379}}, "words": {"freq": {"ai": [["list", 46], ["valid", 46], ["loop", 45], ["result", 38], ["add", 35], ["new", 32], ["total", 29], ["data", 29], ["check", 28], ["return", 25], ["size", 24], ["instance", 22], ["array", 17], ["initialize", 15], ["invoice", 15], ["sum", 14], ["sizes", 14], ["built", 11], ["entry", 10], ["fetch", 10], ["request", 10], ["create", 10], ["hold", 10], ["product", 9], ["account", 9], ["adding", 9], ["fail", 8], ["file", 8], ["store", 8], ["payment", 8], ["invoices", 7], ["try", 7], ["client", 7], ["handle", 7], ["error", 7], ["json", 7], ["append", 7], ["record", 7], ["push", 7], ["user", 7], ["entrys", 6], ["order", 6], ["accounts", 6], ["response", 6], ["message", 6], ["counter", 5], ["products", 5], ["event", 5], ["records", 5], ["item", 5], ["skip", 4], ["invalid", 4], ["entries", 4], ["avoid", 4], ["crashing", 4], ["later", 4], ["payments", 4], ["raise", 4], ["retries", 4], ["retry", 4], ["transiently", 4], ["open", 4], ["given", 4], ["path", 4], ["load", 4], ["config", 4], ["requests", 4], ["task", 4], ["session", 4], ["timeout", 3], ["wait", 3], ["retrying", 3], ["zero", 3], ["token", 3], ["url", 3], ["parse", 3], ["ticket", 3], ["users", 3], ["events", 3], ["configs", 2]], "human": [["job", 9], ["set", 8], ["empty", 7], ["order", 7], ["workaround", 6], ["windows", 6], ["path", 6], ["quirk", 6], ["otherwise", 6], ["never", 6], ["resolves", 6], ["check", 6], ["edge", 5], ["case", 5], ["cancelled", 5], ["mid", 5], ["flight", 5], ["kludge", 5], ["keep", 5], ["old", 5], ["working", 5], ["migration", 5], ["finishes", 5], ["loop", 5], ["magic", 4], ["number", 4], ["spec", 4], ["section", 4], ["matters", 4], ["validated", 4], ["touch", 4], ["cache", 4], ["list", 4], ["report", 4], ["see", 4], ["probably", 4], ["fine", 4], ["tested", 4], ["unicode", 4], ["names", 4], ["tiny", 4], ["practice", 4], ["leave", 4], ["alone", 4], ["now", 4], ["pretty", 4], ["avoids", 4], ["second", 4], ["database", 4], ["round", 4], ["trip", 4], ["request", 4], ["todo", 3], ["remove", 3], ["drop", 3], ["python", 3], ["support", 3], ["task", 3], ["get", 3], ["temporary", 3], ["fix", 3], ["real", 3], ["solution", 3], ["needs", 3], ["new", 3], ["storage", 3], ["layer", 3], ["fixme", 3], ["breaks", 3], ["two", 3], ["share", 3], ["name", 3], ["nobody", 3], ["noticed", 3], ["needed", 3], ["backwards", 3], ["compatibility", 3], ["export", 3], ["format", 3], ["used", 3]]}, "distinctive": {"ai": [["valid", 3.75624, 46, 0], ["add", 3.25228, 35, 0], ["list", 3.12899, 46, 4], ["total", 2.94855, 29, 0], ["data", 2.94855, 29, 0], ["loop", 2.92117, 45, 5], ["result", 2.8787, 38, 3], ["size", 2.67342, 24, 0], ["instance", 2.5562, 22, 0], ["new", 2.54124, 32, 3], ["array", 2.23959, 17, 0], ["initialize", 2.10095, 15, 0], ["invoice", 2.10095, 15, 0], ["return", 2.09669, 25, 3], ["sum", 2.02837, 14, 0], ["sizes", 2.02837, 14, 0], ["built", 1.7944, 11, 0], ["check", 1.71529, 28, 6], ["fetch", 1.70977, 10, 0], ["create", 1.70977, 10, 0], ["account", 1.62096, 9, 0], ["adding", 1.62096, 9, 0], ["fail", 1.52725, 8, 0], ["file", 1.52725, 8, 0], ["store", 1.52725, 8, 0], ["try", 1.42768, 7, 0], ["handle", 1.42768, 7, 0], ["error", 1.42768, 7, 0], ["json", 1.42768, 7, 0], ["append", 1.42768, 7, 0], ["push", 1.42768, 7, 0], ["entrys", 1.3209, 6, 0], ["accounts", 1.3209, 6, 0], ["response", 1.3209, 6, 0], ["message", 1.3209, 6, 0], ["records", 1.20502, 5, 0], ["payment", 1.15563, 8, 1], ["hold", 1.05357, 10, 2], ["invoices", 1.03158, 7, 1], ["record", 1.03158, 7, 1], ["product", 0.93289, 9, 2], ["entry", 0.74892, 10, 3], ["products", 0.74178, 5, 1], ["item", 0.74178, 5, 1], ["client", 0.66015, 7, 2], ["config", 0.56539, 4, 1], ["requests", 0.56539, 4, 1], ["session", 0.56539, 4, 1], ["request", 0.46327, 10, 4], ["counter", 0.32587, 5, 2], ["event", 0.32587, 5, 2], ["user", 0.3211, 7, 3]], "human": [["set", 2.4807, 8, 0], ["empty", 2.31885, 7, 0], ["job", 2.20378, 9, 2], ["workaround", 2.14533, 6, 0], ["windows", 2.14533, 6, 0], ["quirk", 2.14533, 6, 0], ["otherwise", 2.14533, 6, 0], ["never", 2.14533, 6, 0], ["resolves", 2.14533, 6, 0], ["edge", 1.95704, 5, 0], ["case", 1.95704, 5, 0], ["cancelled", 1.95704, 5, 0], ["mid", 1.95704, 5, 0], ["flight", 1.95704, 5, 0], ["kludge", 1.95704, 5, 0], ["keep", 1.95704, 5, 0], ["old", 1.95704, 5, 0], ["working", 1.95704, 5, 0], ["migration", 1.95704, 5, 0], ["finishes", 1.95704, 5, 0], ["report", 1.4254, 4, 1], ["path", 1.12549, 6, 4], ["order", 0.95312, 7, 6], ["token", 0.50165, 3, 3], ["skip", 0.2539, 3, 4], ["task", 0.2539, 3, 4], ["ticket", 0.11643, 2, 3], ["users", 0.11643, 2, 3]]}, "bigrams": {"ai": [["return new", 22], ["result list", 18], ["instance built", 11], ["create new", 10], ["new list", 10], ["result array", 9], ["json data", 7], ["total counter", 5], ["skip invalid", 4], ["invalid entries", 4], ["avoid crashing", 4], ["crashing later", 4], ["retries fail", 4], ["fail transiently", 4], ["given path", 4], ["file handle", 4], ["timeout error", 3], ["new order", 3], ["order instance", 3], ["valid entrys", 3], ["invoices list", 3], ["entry size", 2], ["invoice size", 2], ["product size", 2], ["token size", 2]], "human": [["windows path", 6], ["path quirk", 6], ["quirk otherwise", 6], ["never resolves", 6], ["edge case", 5], ["cancelled mid", 5], ["mid flight", 5], ["keep old", 5], ["migration finishes", 5], ["magic number", 4], ["spec section", 4], ["order matters", 4], ["probably fine", 4], ["unicode names", 4], ["avoids second", 4], ["second database", 4], ["database round", 4], ["round trip", 4], ["todo remove", 3], ["drop python", 3], ["python support", 3], ["temporary fix", 3], ["real solution", 3], ["solution needs", 3], ["new storage", 3]]}, "tokens": {"ai": 840, "human": 485}}, "warnings": ["ai: всего 4 репозиториев - интервалы по кластерам будут широкими, выводы предварительные", "ai: всего 192 обычных комментариев - мало для устойчивых оценок", "human: всего 4 репозиториев - интервалы по кластерам будут широкими, выводы предварительные", "human: всего 94 обычных комментариев - мало для устойчивых оценок", "ai: доля referential при θ=0.5 равна 71%, а при θ=0.51 - 41%. У 59 комментариев overlap ровно 0.5: overlap - дробь k/n от малого числа слов, поэтому на некоторых значениях лежит много комментариев. Смотрите кривую чувствительности и калибруйте θ по ручной разметке (validate.py)"], "density": {"available": true, "per_source": {"ai": {"files": 41, "repos": 4, "added_lines": 1347, "added_nonblank": 1138, "comments": 381, "comment_lines": 453, "per100": 28.28508, "per100_nonblank": 33.47979, "line_share": 0.3363, "main_per100": 21.38085, "doc_per100": 6.90423, "by_kind_per100": {"inline": 3.11804, "leading": 18.26281, "block": 0.0, "detached": 0.0, "doc": 6.90423}, "repo_median_per100": 28.49686}, "human": {"files": 47, "repos": 4, "added_lines": 1301, "added_nonblank": 1056, "comments": 159, "comment_lines": 183, "per100": 12.22137, "per100_nonblank": 15.05682, "line_share": 0.14066, "main_per100": 9.99231, "doc_per100": 2.22905, "by_kind_per100": {"inline": 1.30669, "leading": 8.68563, "block": 0.0, "detached": 0.0, "doc": 2.22905}, "repo_median_per100": 12.93546}}, "by_lang": {"go": {"ai": {"files": 7, "repos": 2, "added_lines": 212, "added_nonblank": 171, "comments": 60, "comment_lines": 60, "per100": 28.30189, "per100_nonblank": 35.08772, "line_share": 0.28302, "main_per100": 21.69811, "doc_per100": 6.60377, "by_kind_per100": {"inline": 7.07547, "leading": 14.62264, "block": 0.0, "detached": 0.0, "doc": 6.60377}, "repo_median_per100": 28.01839}, "human": {"files": 8, "repos": 2, "added_lines": 231, "added_nonblank": 179, "comments": 25, "comment_lines": 25, "per100": 10.82251, "per100_nonblank": 13.96648, "line_share": 0.10823, "main_per100": 7.79221, "doc_per100": 3.0303, "by_kind_per100": {"inline": 3.4632, "leading": 4.329, "block": 0.0, "detached": 0.0, "doc": 3.0303}, "repo_median_per100": 10.82709}}, "java": {"ai": {"files": 6, "repos": 2, "added_lines": 267, "added_nonblank": 243, "comments": 52, "comment_lines": 78, "per100": 19.47566, "per100_nonblank": 21.39918, "line_share": 0.29213, "main_per100": 14.60674, "doc_per100": 4.86891, "by_kind_per100": {"inline": 0.0, "leading": 14.60674, "block": 0.0, "detached": 0.0, "doc": 4.86891}, "repo_median_per100": 19.48538}, "human": {"files": 7, "repos": 2, "added_lines": 266, "added_nonblank": 235, "comments": 20, "comment_lines": 26, "per100": 7.5188, "per100_nonblank": 8.51064, "line_share": 0.09774, "main_per100": 6.39098, "doc_per100": 1.12782, "by_kind_per100": {"inline": 0.0, "leading": 6.39098, "block": 0.0, "detached": 0.0, "doc": 1.12782}, "repo_median_per100": 7.45116}}, "javascript": {"ai": {"files": 10, "repos": 3, "added_lines": 349, "added_nonblank": 309, "comments": 97, "comment_lines": 143, "per100": 27.7937, "per100_nonblank": 31.39159, "line_share": 0.40974, "main_per100": 21.20344, "doc_per100": 6.59026, "by_kind_per100": {"inline": 3.15186, "leading": 18.05158, "block": 0.0, "detached": 0.0, "doc": 6.59026}, "repo_median_per100": 27.58621}, "human": {"files": 13, "repos": 3, "added_lines": 351, "added_nonblank": 298, "comments": 52, "comment_lines": 70, "per100": 14.81481, "per100_nonblank": 17.44966, "line_share": 0.19943, "main_per100": 12.25071, "doc_per100": 2.5641, "by_kind_per100": {"inline": 1.4245, "leading": 10.82621, "block": 0.0, "detached": 0.0, "doc": 2.5641}, "repo_median_per100": 15.32847}}, "python": {"ai": {"files": 18, "repos": 4, "added_lines": 519, "added_nonblank": 415, "comments": 172, "comment_lines": 172, "per100": 33.14066, "per100_nonblank": 41.44578, "line_share": 0.33141, "main_per100": 24.85549, "doc_per100": 8.28516, "by_kind_per100": {"inline": 3.08285, "leading": 21.77264, "block": 0.0, "detached": 0.0, "doc": 8.28516}, "repo_median_per100": 33.07144}, "human": {"files": 19, "repos": 4, "added_lines": 453, "added_nonblank": 344, "comments": 62, "comment_lines": 62, "per100": 13.68653, "per100_nonblank": 18.02326, "line_share": 0.13687, "main_per100": 11.47903, "doc_per100": 2.20751, "by_kind_per100": {"inline": 0.883, "leading": 10.59603, "block": 0.0, "detached": 0.0, "doc": 2.20751}, "repo_median_per100": 13.89155}}}, "by_tool": {"claude": {"files": 21, "repos": 4, "added_lines": 662, "added_nonblank": 559, "comments": 188, "comment_lines": 226, "per100": 28.39879, "per100_nonblank": 33.63148, "line_share": 0.34139, "main_per100": 21.45015, "doc_per100": 6.94864, "by_kind_per100": {"inline": 3.32326, "leading": 18.12689, "block": 0.0, "detached": 0.0, "doc": 6.94864}, "repo_median_per100": 27.90439}, "copilot": {"files": 7, "repos": 2, "added_lines": 189, "added_nonblank": 152, "comments": 63, "comment_lines": 63, "per100": 33.33333, "per100_nonblank": 41.44737, "line_share": 0.33333, "main_per100": 25.92593, "doc_per100": 7.40741, "by_kind_per100": {"inline": 6.34921, "leading": 19.57672, "block": 0.0, "detached": 0.0, "doc": 7.40741}, "repo_median_per100": 37.71429}, "cursor": {"files": 13, "repos": 3, "added_lines": 496, "added_nonblank": 427, "comments": 130, "comment_lines": 164, "per100": 26.20968, "per100_nonblank": 30.44496, "line_share": 0.33065, "main_per100": 19.55645, "doc_per100": 6.65323, "by_kind_per100": {"inline": 1.6129, "leading": 17.94355, "block": 0.0, "detached": 0.0, "doc": 6.65323}, "repo_median_per100": 25.10823}}, "bootstrap": {"all": {"diff": 16.06371, "lo": 13.69292, "hi": 18.93442, "ratio": 2.3144, "ratio_lo": 2.03033, "ratio_hi": 2.72644, "share_a": 28.28508, "share_b": 12.22137, "n_clusters": [4, 4]}, "main": {"diff": 11.38853, "lo": 8.82755, "hi": 14.05431, "ratio": 2.13973, "ratio_lo": 1.78356, "ratio_hi": 2.6012, "share_a": 21.38085, "share_b": 9.99231, "n_clusters": [4, 4]}}}, "schema": 1, "generated_at": "2026-09-22T15:28:58+00:00", "demo": true, "theta": 0.5, "min_content_words": 3, "nlp_backend": "heuristic", "balanced": false, "composition": {"ai": {"observed": 381, "duplicate": 101, "analyzed": 280}, "human": {"observed": 159, "duplicate": 35, "non_english": 1, "analyzed": 123}}, "params": {"max_per_repo": 500, "min_per_repo": 1, "seed": 42, "boot": 300}, "human_cutoff": "2020-11-01"}, "examples": {"ai": [{"band": "high", "text": "Add the order size to the total", "code": "total += order.size", "overlap": 0.75, "overlap_ext": 0.75, "kind": "inline", "lang": "python", "repo": "local/paired_b", "cls": "referential", "cues": [], "hl": [["Add", 3], ["the", 0], ["order", 1], ["size", 1], ["to", 0], ["the", 0], ["total", 1]]}, {"band": "high", "text": "Return a new Task instance with the data", "code": "return new Task(data);", "overlap": 0.8, "overlap_ext": 1.0, "kind": "leading", "lang": "javascript", "repo": "local/new_ai", "cls": "referential", "cues": [], "hl": [["Return", 1], ["a", 0], ["new", 1], ["Task", 1], ["instance", 2], ["with", 0], ["the", 0], ["data", 1]]}, {"band": "high", "text": "Add the account size to the total", "code": "total += account.Size", "overlap": 0.75, "overlap_ext": 0.75, "kind": "inline", "lang": "go", "repo": "local/paired_b", "cls": "referential", "cues": [], "hl": [["Add", 3], ["the", 0], ["account", 1], ["size", 1], ["to", 0], ["the", 0], ["total", 1]]}, {"band": "high", "text": "Add the ticket size to the total.", "code": "total += ticket.Size", "overlap": 0.75, "overlap_ext": 0.75, "kind": "inline", "lang": "go", "repo": "local/paired_b", "cls": "explanatory", "cues": ["reference"], "hl": [["Add", 3], ["the", 0], ["ticket", 1], ["size", 1], ["to", 0], ["the", 0], ["total.", 1]]}, {"band": "high", "text": "Parse the JSON data from the response.", "code": "const data = await response.json();", "overlap": 0.75, "overlap_ext": 0.75, "kind": "leading", "lang": "javascript", "repo": "local/paired_a", "cls": "referential", "cues": [], "hl": [["Parse", 3], ["the", 0], ["JSON", 1], ["data", 1], ["from", 0], ["the", 0], ["response.", 1]]}, {"band": "high", "text": "Fetch the response from the URL.", "code": "const response = await fetch(url);", "overlap": 1.0, "overlap_ext": 1.0, "kind": "leading", "lang": "javascript", "repo": "local/new_ai", "cls": "referential", "cues": [], "hl": [["Fetch", 1], ["the", 0], ["response", 1], ["from", 0], ["the", 0], ["URL.", 1]]}, {"band": "high", "text": "Add the token size to the total.", "code": "total += token.Size", "overlap": 0.75, "overlap_ext": 0.75, "kind": "inline", "lang": "go", "repo": "local/paired_b", "cls": "referential", "cues": [], "hl": [["Add", 3], ["the", 0], ["token", 1], ["size", 1], ["to", 0], ["the", 0], ["total.", 1]]}, {"band": "high", "text": "Check if the request is valid and add it to the result", "code": "if (request.isValid()) {\n                result.add(request);\n            }", "overlap": 0.8, "overlap_ext": 1.0, "kind": "leading", "lang": "java", "repo": "local/new_ai", "cls": "referential", "cues": [], "hl": [["Check", 2], ["if", 0], ["the", 0], ["request", 1], ["is", 0], ["valid", 1], ["and", 0], ["add", 1], ["it", 0], ["to", 0], ["the", 0], ["result", 1]]}, {"band": "high", "text": "Fetch the response from the URL.", "code": "const response = await fetch(url);", "overlap": 1.0, "overlap_ext": 1.0, "kind": "leading", "lang": "javascript", "repo": "local/paired_c", "cls": "referential", "cues": [], "hl": [["Fetch", 1], ["the", 0], ["response", 1], ["from", 0], ["the", 0], ["URL.", 1]]}, {"band": "high", "text": "Add the item size to the total", "code": "total += item.size", "overlap": 0.75, "overlap_ext": 0.75, "kind": "inline", "lang": "python", "repo": "local/paired_a", "cls": "referential", "cues": [], "hl": [["Add", 3], ["the", 0], ["item", 1], ["size", 1], ["to", 0], ["the", 0], ["total", 1]]}, {"band": "high", "text": "Check if the product is valid", "code": "if (product.isValid()) {\n      result.push(product);  \n    }", "overlap": 0.66667, "overlap_ext": 1.0, "kind": "leading", "lang": "javascript", "repo": "local/paired_c", "cls": "referential", "cues": [], "hl": [["Check", 2], ["if", 0], ["the", 0], ["product", 1], ["is", 0], ["valid", 1]]}, {"band": "high", "text": "Add the payment size to the total", "code": "total += payment.Size", "overlap": 0.75, "overlap_ext": 0.75, "kind": "inline", "lang": "go", "repo": "local/paired_b", "cls": "referential", "cues": [], "hl": [["Add", 3], ["the", 0], ["payment", 1], ["size", 1], ["to", 0], ["the", 0], ["total", 1]]}, {"band": "high", "text": "Push the session to the result array.", "code": "result.push(session);", "overlap": 0.75, "overlap_ext": 0.75, "kind": "inline", "lang": "javascript", "repo": "local/paired_a", "cls": "referential", "cues": [], "hl": [["Push", 1], ["the", 0], ["session", 1], ["to", 0], ["the", 0], ["result", 1], ["array.", 3]]}, {"band": "high", "text": "Check if the entry is valid and add it to the result.", "code": "if (entry.isValid()) {\n                result.add(entry);\n            }", "overlap": 0.8, "overlap_ext": 1.0, "kind": "leading", "lang": "java", "repo": "local/paired_c", "cls": "referential", "cues": [], "hl": [["Check", 2], ["if", 0], ["the", 0], ["entry", 1], ["is", 0], ["valid", 1], ["and", 0], ["add", 1], ["it", 0], ["to", 0], ["the", 0], ["result.", 1]]}, {"band": "high", "text": "Check if the record is valid and add it to the result.", "code": "if (record.isValid()) {\n                result.add(record);\n            }", "overlap": 0.8, "overlap_ext": 1.0, "kind": "leading", "lang": "java", "repo": "local/new_ai", "cls": "referential", "cues": [], "hl": [["Check", 2], ["if", 0], ["the", 0], ["record", 1], ["is", 0], ["valid", 1], ["and", 0], ["add", 1], ["it", 0], ["to", 0], ["the", 0], ["result.", 1]]}, {"band": "high", "text": "Check if the payment is valid.", "code": "if (payment.isValid()) {\n      result.push(payment);  \n    }", "overlap": 0.66667, "overlap_ext": 1.0, "kind": "leading", "lang": "javascript", "repo": "local/paired_c", "cls": "referential", "cues": [], "hl": [["Check", 2], ["if", 0], ["the", 0], ["payment", 1], ["is", 0], ["valid.", 1]]}, {"band": "high", "text": "Return the result list", "code": "return result", "overlap": 0.66667, "overlap_ext": 0.66667, "kind": "leading", "lang": "python", "repo": "local/paired_b", "cls": "referential", "cues": [], "hl": [["Return", 1], ["the", 0], ["result", 1], ["list", 3]]}, {"band": "high", "text": "Add the event size to the total.", "code": "total += event.Size", "overlap": 0.75, "overlap_ext": 0.75, "kind": "inline", "lang": "go", "repo": "local/paired_b", "cls": "referential", "cues": [], "hl": [["Add", 3], ["the", 0], ["event", 1], ["size", 1], ["to", 0], ["the", 0], ["total.", 1]]}, {"band": "high", "text": "Loop through the entrys and add each size to the total", "code": "for entry in entrys:\n        total += entry.size", "overlap": 0.6, "overlap_ext": 0.8, "kind": "leading", "lang": "python", "repo": "local/paired_b", "cls": "referential", "cues": [], "hl": [["Loop", 2], ["through", 0], ["the", 0], ["entrys", 1], ["and", 0], ["add", 3], ["each", 0], ["size", 1], ["to", 0], ["the", 0], ["total", 1]]}, {"band": "high", "text": "Return a new Token instance with the data", "code": "return new Token(data);", "overlap": 0.8, "overlap_ext": 1.0, "kind": "leading", "lang": "javascript", "repo": "local/paired_a", "cls": "referential", "cues": [], "hl": [["Return", 1], ["a", 0], ["new", 1], ["Token", 1], ["instance", 2], ["with", 0], ["the", 0], ["data", 1]]}, {"band": "high", "text": "Add the invoice size to the total.", "code": "total += invoice.Size", "overlap": 0.75, "overlap_ext": 0.75, "kind": "inline", "lang": "go", "repo": "local/new_ai", "cls": "referential", "cues": [], "hl": [["Add", 3], ["the", 0], ["invoice", 1], ["size", 1], ["to", 0], ["the", 0], ["total.", 1]]}, {"band": "high", "text": "Push the product to the result array.", "code": "result.push(product);", "overlap": 0.75, "overlap_ext": 0.75, "kind": "inline", "lang": "javascript", "repo": "local/paired_c", "cls": "referential", "cues": [], "hl": [["Push", 1], ["the", 0], ["product", 1], ["to", 0], ["the", 0], ["result", 1], ["array.", 3]]}, {"band": "high", "text": "Append the entry to the result list", "code": "result.append(entry)", "overlap": 0.75, "overlap_ext": 0.75, "kind": "inline", "lang": "python", "repo": "local/paired_b", "cls": "referential", "cues": [], "hl": [["Append", 1], ["the", 0], ["entry", 1], ["to", 0], ["the", 0], ["result", 1], ["list", 3]]}, {"band": "high", "text": "Return a new Message instance with the data", "code": "return new Message(data);", "overlap": 0.8, "overlap_ext": 1.0, "kind": "leading", "lang": "javascript", "repo": "local/paired_a", "cls": "referential", "cues": [], "hl": [["Return", 1], ["a", 0], ["new", 1], ["Message", 1], ["instance", 2], ["with", 0], ["the", 0], ["data", 1]]}, {"band": "high", "text": "Add the account size to the total", "code": "total += account.Size", "overlap": 0.75, "overlap_ext": 0.75, "kind": "inline", "lang": "go", "repo": "local/new_ai", "cls": "referential", "cues": [], "hl": [["Add", 3], ["the", 0], ["account", 1], ["size", 1], ["to", 0], ["the", 0], ["total", 1]]}, {"band": "high", "text": "Return a new Config instance with the data.", "code": "return new Config(data);", "overlap": 0.8, "overlap_ext": 1.0, "kind": "leading", "lang": "javascript", "repo": "local/paired_c", "cls": "referential", "cues": [], "hl": [["Return", 1], ["a", 0], ["new", 1], ["Config", 1], ["instance", 2], ["with", 0], ["the", 0], ["data.", 1]]}, {"band": "high", "text": "Add the record size to the total", "code": "total += record.Size", "overlap": 0.75, "overlap_ext": 0.75, "kind": "inline", "lang": "go", "repo": "local/new_ai", "cls": "referential", "cues": [], "hl": [["Add", 3], ["the", 0], ["record", 1], ["size", 1], ["to", 0], ["the", 0], ["total", 1]]}, {"band": "high", "text": "Push the account to the result array.", "code": "result.push(account);", "overlap": 0.75, "overlap_ext": 0.75, "kind": "inline", "lang": "javascript", "repo": "local/new_ai", "cls": "referential", "cues": [], "hl": [["Push", 1], ["the", 0], ["account", 1], ["to", 0], ["the", 0], ["result", 1], ["array.", 3]]}, {"band": "high", "text": "Append the invoice to the result list.", "code": "result.append(invoice)", "overlap": 0.75, "overlap_ext": 0.75, "kind": "inline", "lang": "python", "repo": "local/paired_b", "cls": "referential", "cues": [], "hl": [["Append", 1], ["the", 0], ["invoice", 1], ["to", 0], ["the", 0], ["result", 1], ["list.", 3]]}, {"band": "high", "text": "Append the event to the result list.", "code": "result.append(event)", "overlap": 0.75, "overlap_ext": 0.75, "kind": "inline", "lang": "python", "repo": "local/paired_c", "cls": "referential", "cues": [], "hl": [["Append", 1], ["the", 0], ["event", 1], ["to", 0], ["the", 0], ["result", 1], ["list.", 3]]}, {"band": "high", "text": "Loop through the accounts and add each size to the total", "code": "for account in accounts:\n        total += account.size", "overlap": 0.6, "overlap_ext": 0.8, "kind": "leading", "lang": "python", "repo": "local/paired_b", "cls": "referential", "cues": [], "hl": [["Loop", 2], ["through", 0], ["the", 0], ["accounts", 1], ["and", 0], ["add", 3], ["each", 0], ["size", 1], ["to", 0], ["the", 0], ["total", 1]]}, {"band": "high", "text": "Load the JSON data from the file handle.", "code": "data = json.load(handle)", "overlap": 0.8, "overlap_ext": 0.8, "kind": "leading", "lang": "python", "repo": "local/paired_c", "cls": "referential", "cues": [], "hl": [["Load", 1], ["the", 0], ["JSON", 1], ["data", 1], ["from", 0], ["the", 0], ["file", 3], ["handle.", 1]]}, {"band": "high", "text": "Check if the payment is valid", "code": "if (payment.isValid()) {\n      result.push(payment);  \n    }", "overlap": 0.66667, "overlap_ext": 1.0, "kind": "leading", "lang": "javascript", "repo": "local/paired_a", "cls": "referential", "cues": [], "hl": [["Check", 2], ["if", 0], ["the", 0], ["payment", 1], ["is", 0], ["valid", 1]]}, {"band": "high", "text": "Check if the config is valid and add it to the result", "code": "if (config.isValid()) {\n                result.add(config);\n            }", "overlap": 0.8, "overlap_ext": 1.0, "kind": "leading", "lang": "java", "repo": "local/new_ai", "cls": "referential", "cues": [], "hl": [["Check", 2], ["if", 0], ["the", 0], ["config", 1], ["is", 0], ["valid", 1], ["and", 0], ["add", 1], ["it", 0], ["to", 0], ["the", 0], ["result", 1]]}, {"band": "high", "text": "Push the payment to the result array.", "code": "result.push(payment);", "overlap": 0.75, "overlap_ext": 0.75, "kind": "inline", "lang": "javascript", "repo": "local/paired_c", "cls": "referential", "cues": [], "hl": [["Push", 1], ["the", 0], ["payment", 1], ["to", 0], ["the", 0], ["result", 1], ["array.", 3]]}, {"band": "high", "text": "Add the product size to the total", "code": "total += product.Size", "overlap": 0.75, "overlap_ext": 0.75, "kind": "inline", "lang": "go", "repo": "local/new_ai", "cls": "referential", "cues": [], "hl": [["Add", 3], ["the", 0], ["product", 1], ["size", 1], ["to", 0], ["the", 0], ["total", 1]]}, {"band": "high", "text": "Return a new Event instance with the data", "code": "return new Event(data);", "overlap": 0.8, "overlap_ext": 1.0, "kind": "leading", "lang": "javascript", "repo": "local/new_ai", "cls": "referential", "cues": [], "hl": [["Return", 1], ["a", 0], ["new", 1], ["Event", 1], ["instance", 2], ["with", 0], ["the", 0], ["data", 1]]}, {"band": "high", "text": "Return a new Ticket instance with the data", "code": "return new Ticket(data);", "overlap": 0.8, "overlap_ext": 1.0, "kind": "leading", "lang": "javascript", "repo": "local/paired_a", "cls": "explanatory", "cues": ["reference"], "hl": [["Return", 1], ["a", 0], ["new", 1], ["Ticket", 1], ["instance", 2], ["with", 0], ["the", 0], ["data", 1]]}, {"band": "high", "text": "Return a new Item instance with the data.", "code": "return new Item(data);", "overlap": 0.8, "overlap_ext": 1.0, "kind": "leading", "lang": "javascript", "repo": "local/new_ai", "cls": "referential", "cues": [], "hl": [["Return", 1], ["a", 0], ["new", 1], ["Item", 1], ["instance", 2], ["with", 0], ["the", 0], ["data.", 1]]}, {"band": "high", "text": "Append the user to the result list.", "code": "result.append(user)", "overlap": 0.75, "overlap_ext": 0.75, "kind": "inline", "lang": "python", "repo": "local/paired_a", "cls": "referential", "cues": [], "hl": [["Append", 1], ["the", 0], ["user", 1], ["to", 0], ["the", 0], ["result", 1], ["list.", 3]]}, {"band": "mid", "text": "Create a new list to hold the valid entrys.", "code": "List<Entry> result = new ArrayList<>();", "overlap": 0.5, "overlap_ext": 0.66667, "kind": "leading", "lang": "java", "repo": "local/new_ai", "cls": "referential", "cues": [], "hl": [["Create", 2], ["a", 0], ["new", 1], ["list", 1], ["to", 0], ["hold", 3], ["the", 0], ["valid", 3], ["entrys.", 1]]}, {"band": "mid", "text": "Loop through each record in the list.", "code": "for (Record record : records) {\n            if (record.isValid()) {\n                result.add(record);\n            }\n        }", "overlap": 0.33333, "overlap_ext": 0.66667, "kind": "leading", "lang": "java", "repo": "local/paired_c", "cls": "other", "cues": [], "hl": [["Loop", 2], ["through", 0], ["each", 0], ["record", 1], ["in", 0], ["the", 0], ["list.", 3]]}, {"band": "mid", "text": "Loop through the payments and sum the sizes", "code": "for _, payment := range payments {\n\t\ttotal += payment.Size\n\t}", "overlap": 0.5, "overlap_ext": 0.75, "kind": "leading", "lang": "go", "repo": "local/new_ai", "cls": "referential", "cues": [], "hl": [["Loop", 2], ["through", 0], ["the", 0], ["payments", 1], ["and", 0], ["sum", 3], ["the", 0], ["sizes", 1]]}, {"band": "mid", "text": "Check if the account is valid before adding it.", "code": "if account.is_valid():\n            result.append(account)", "overlap": 0.5, "overlap_ext": 0.75, "kind": "leading", "lang": "python", "repo": "local/new_ai", "cls": "referential", "cues": [], "hl": [["Check", 2], ["if", 0], ["the", 0], ["account", 1], ["is", 0], ["valid", 1], ["before", 0], ["adding", 3], ["it.", 0]]}, {"band": "mid", "text": "Loop through each message in the messages array", "code": "for (const message of messages) {\n    if (message.isValid()) {\n      result.push(message);  \n    }\n  }", "overlap": 0.33333, "overlap_ext": 0.66667, "kind": "leading", "lang": "javascript", "repo": "local/paired_a", "cls": "other", "cues": [], "hl": [["Loop", 2], ["through", 0], ["each", 0], ["message", 1], ["in", 0], ["the", 0], ["messages", 1], ["array", 3]]}, {"band": "mid", "text": "Initialize the total counter to zero", "code": "total = 0", "overlap": 0.25, "overlap_ext": 0.25, "kind": "leading", "lang": "python", "repo": "local/paired_b", "cls": "other", "cues": [], "hl": [["Initialize", 3], ["the", 0], ["total", 1], ["counter", 3], ["to", 0], ["zero", 3]]}, {"band": "mid", "text": "Check if the invoice is valid before adding it.", "code": "if invoice.is_valid():\n            result.append(invoice)", "overlap": 0.5, "overlap_ext": 0.75, "kind": "leading", "lang": "python", "repo": "local/paired_b", "cls": "referential", "cues": [], "hl": [["Check", 2], ["if", 0], ["the", 0], ["invoice", 1], ["is", 0], ["valid", 1], ["before", 0], ["adding", 3], ["it.", 0]]}, {"band": "mid", "text": "Loop through each request in the list", "code": "for (Request request : requests) {\n            if (request.isValid()) {\n                result.add(request);\n            }\n        }", "overlap": 0.33333, "overlap_ext": 0.66667, "kind": "leading", "lang": "java", "repo": "local/paired_c", "cls": "other", "cues": [], "hl": [["Loop", 2], ["through", 0], ["each", 0], ["request", 1], ["in", 0], ["the", 0], ["list", 3]]}, {"band": "mid", "text": "Return a new Invoice instance built from the data.", "code": "return Invoice(**data)", "overlap": 0.5, "overlap_ext": 0.5, "kind": "leading", "lang": "python", "repo": "local/paired_c", "cls": "referential", "cues": [], "hl": [["Return", 1], ["a", 0], ["new", 3], ["Invoice", 1], ["instance", 3], ["built", 3], ["from", 0], ["the", 0], ["data.", 1]]}, {"band": "mid", "text": "Try to fetch the session using the client", "code": "return client.get(session_id)", "overlap": 0.5, "overlap_ext": 0.75, "kind": "leading", "lang": "python", "repo": "local/paired_a", "cls": "referential", "cues": [], "hl": [["Try", 3], ["to", 0], ["fetch", 2], ["the", 0], ["session", 1], ["using", 0], ["the", 0], ["client", 1]]}, {"band": "mid", "text": "Try to fetch the product using the client.", "code": "return client.get(product_id)", "overlap": 0.5, "overlap_ext": 0.75, "kind": "leading", "lang": "python", "repo": "local/new_ai", "cls": "referential", "cues": [], "hl": [["Try", 3], ["to", 0], ["fetch", 2], ["the", 0], ["product", 1], ["using", 0], ["the", 0], ["client.", 1]]}, {"band": "mid", "text": "Loop through each invoice in the invoices list.", "code": "for invoice in invoices:\n        if invoice.is_valid():\n            result.append(invoice)", "overlap": 0.33333, "overlap_ext": 0.66667, "kind": "leading", "lang": "python", "repo": "local/paired_a", "cls": "other", "cues": [], "hl": [["Loop", 2], ["through", 0], ["each", 0], ["invoice", 1], ["in", 0], ["the", 0], ["invoices", 1], ["list.", 3]]}, {"band": "mid", "text": "Create a new list to hold the valid configs", "code": "List<Config> result = new ArrayList<>();", "overlap": 0.5, "overlap_ext": 0.66667, "kind": "leading", "lang": "java", "repo": "local/new_ai", "cls": "referential", "cues": [], "hl": [["Create", 2], ["a", 0], ["new", 1], ["list", 1], ["to", 0], ["hold", 3], ["the", 0], ["valid", 3], ["configs", 1]]}, {"band": "mid", "text": "Loop through each product in the products array.", "code": "for (const product of products) {\n    if (product.isValid()) {\n      result.push(product);  \n    }\n  }", "overlap": 0.33333, "overlap_ext": 0.66667, "kind": "leading", "lang": "javascript", "repo": "local/paired_c", "cls": "other", "cues": [], "hl": [["Loop", 2], ["through", 0], ["each", 0], ["product", 1], ["in", 0], ["the", 0], ["products", 1], ["array.", 3]]}, {"band": "mid", "text": "Initialize the total counter.", "code": "total := 0\n\tfor _, invoice := range invoices {\n\t\ttotal += invoice.Size  \n\t}\n\treturn total", "overlap": 0.33333, "overlap_ext": 0.33333, "kind": "leading", "lang": "go", "repo": "local/new_ai", "cls": "other", "cues": [], "hl": [["Initialize", 3], ["the", 0], ["total", 1], ["counter.", 3]]}, {"band": "mid", "text": "Raise an error if all retries fail.", "code": "raise RuntimeError('giving up on entry')", "overlap": 0.5, "overlap_ext": 0.75, "kind": "leading", "lang": "python", "repo": "local/new_ai", "cls": "referential", "cues": [], "hl": [["Raise", 1], ["an", 0], ["error", 1], ["if", 0], ["all", 0], ["retries", 3], ["fail.", 2]]}, {"band": "mid", "text": "Loop through the records and sum the sizes.", "code": "for _, record := range records {\n\t\ttotal += record.Size  \n\t}", "overlap": 0.5, "overlap_ext": 0.75, "kind": "leading", "lang": "go", "repo": "local/new_ai", "cls": "referential", "cues": [], "hl": [["Loop", 2], ["through", 0], ["the", 0], ["records", 1], ["and", 0], ["sum", 3], ["the", 0], ["sizes.", 1]]}, {"band": "mid", "text": "Loop through each node in the list", "code": "for (Node node : nodes) {\n            if (node.isValid()) {\n                result.add(node);\n            }\n        }", "overlap": 0.33333, "overlap_ext": 0.66667, "kind": "leading", "lang": "java", "repo": "local/paired_c", "cls": "other", "cues": [], "hl": [["Loop", 2], ["through", 0], ["each", 0], ["node", 1], ["in", 0], ["the", 0], ["list", 3]]}, {"band": "mid", "text": "Initialize the total counter to zero", "code": "total = 0", "overlap": 0.25, "overlap_ext": 0.25, "kind": "leading", "lang": "python", "repo": "local/paired_a", "cls": "other", "cues": [], "hl": [["Initialize", 3], ["the", 0], ["total", 1], ["counter", 3], ["to", 0], ["zero", 3]]}, {"band": "mid", "text": "Return a new Order instance built from the data", "code": "return Order(**data)", "overlap": 0.5, "overlap_ext": 0.5, "kind": "leading", "lang": "python", "repo": "local/paired_b", "cls": "referential", "cues": [], "hl": [["Return", 1], ["a", 0], ["new", 3], ["Order", 1], ["instance", 3], ["built", 3], ["from", 0], ["the", 0], ["data", 1]]}, {"band": "mid", "text": "Check if the user is valid before adding it", "code": "if user.is_valid():\n            result.append(user)", "overlap": 0.5, "overlap_ext": 0.75, "kind": "leading", "lang": "python", "repo": "local/paired_a", "cls": "referential", "cues": [], "hl": [["Check", 2], ["if", 0], ["the", 0], ["user", 1], ["is", 0], ["valid", 1], ["before", 0], ["adding", 3], ["it", 0]]}, {"band": "mid", "text": "Initialize the result array", "code": "const result = [];", "overlap": 0.33333, "overlap_ext": 0.33333, "kind": "leading", "lang": "javascript", "repo": "local/paired_a", "cls": "other", "cues": [], "hl": [["Initialize", 3], ["the", 0], ["result", 1], ["array", 3]]}, {"band": "mid", "text": "Try to fetch the user using the client", "code": "return client.get(user_id)", "overlap": 0.5, "overlap_ext": 0.75, "kind": "leading", "lang": "python", "repo": "local/paired_b", "cls": "referential", "cues": [], "hl": [["Try", 3], ["to", 0], ["fetch", 2], ["the", 0], ["user", 1], ["using", 0], ["the", 0], ["client", 1]]}, {"band": "mid", "text": "Loop through each payment in the payments array.", "code": "for (const payment of payments) {\n    if (payment.isValid()) {\n      result.push(payment);  \n    }\n  }", "overlap": 0.33333, "overlap_ext": 0.66667, "kind": "leading", "lang": "javascript", "repo": "local/paired_a", "cls": "other", "cues": [], "hl": [["Loop", 2], ["through", 0], ["each", 0], ["payment", 1], ["in", 0], ["the", 0], ["payments", 1], ["array.", 3]]}, {"band": "mid", "text": "Loop through the payments and sum the sizes", "code": "for _, payment := range payments {\n\t\ttotal += payment.Size  \n\t}", "overlap": 0.5, "overlap_ext": 0.75, "kind": "leading", "lang": "go", "repo": "local/paired_b", "cls": "referential", "cues": [], "hl": [["Loop", 2], ["through", 0], ["the", 0], ["payments", 1], ["and", 0], ["sum", 3], ["the", 0], ["sizes", 1]]}, {"band": "mid", "text": "Loop through each record in the records array", "code": "for (const record of records) {\n    if (record.isValid()) {\n      result.push(record);\n    }\n  }", "overlap": 0.33333, "overlap_ext": 0.66667, "kind": "leading", "lang": "javascript", "repo": "local/paired_c", "cls": "other", "cues": [], "hl": [["Loop", 2], ["through", 0], ["each", 0], ["record", 1], ["in", 0], ["the", 0], ["records", 1], ["array", 3]]}, {"band": "mid", "text": "Loop through the accounts and sum the sizes", "code": "for _, account := range accounts {\n\t\ttotal += account.Size  \n\t}", "overlap": 0.5, "overlap_ext": 0.75, "kind": "leading", "lang": "go", "repo": "local/paired_b", "cls": "referential", "cues": [], "hl": [["Loop", 2], ["through", 0], ["the", 0], ["accounts", 1], ["and", 0], ["sum", 3], ["the", 0], ["sizes", 1]]}, {"band": "mid", "text": "Create a new list to hold the valid entrys.", "code": "List<Entry> result = new ArrayList<>();", "overlap": 0.5, "overlap_ext": 0.66667, "kind": "leading", "lang": "java", "repo": "local/paired_c", "cls": "referential", "cues": [], "hl": [["Create", 2], ["a", 0], ["new", 1], ["list", 1], ["to", 0], ["hold", 3], ["the", 0], ["valid", 3], ["entrys.", 1]]}, {"band": "mid", "text": "Loop through each config in the list", "code": "for (Config config : configs) {\n            if (config.isValid()) {\n                result.add(config);\n            }\n        }", "overlap": 0.33333, "overlap_ext": 0.66667, "kind": "leading", "lang": "java", "repo": "local/new_ai", "cls": "other", "cues": [], "hl": [["Loop", 2], ["through", 0], ["each", 0], ["config", 1], ["in", 0], ["the", 0], ["list", 3]]}, {"band": "mid", "text": "Loop through each entry in the entrys list.", "code": "for entry in entrys:\n        if entry.is_valid():\n            result.append(entry)", "overlap": 0.33333, "overlap_ext": 0.66667, "kind": "leading", "lang": "python", "repo": "local/paired_b", "cls": "other", "cues": [], "hl": [["Loop", 2], ["through", 0], ["each", 0], ["entry", 1], ["in", 0], ["the", 0], ["entrys", 1], ["list.", 3]]}, {"band": "mid", "text": "Loop through the records and sum the sizes", "code": "for _, record := range records {\n\t\ttotal += record.Size  \n\t}", "overlap": 0.5, "overlap_ext": 0.75, "kind": "leading", "lang": "go", "repo": "local/paired_b", "cls": "referential", "cues": [], "hl": [["Loop", 2], ["through", 0], ["the", 0], ["records", 1], ["and", 0], ["sum", 3], ["the", 0], ["sizes", 1]]}, {"band": "mid", "text": "Return a new User instance built from the data.", "code": "return User(**data)", "overlap": 0.5, "overlap_ext": 0.5, "kind": "leading", "lang": "python", "repo": "local/new_ai", "cls": "referential", "cues": [], "hl": [["Return", 1], ["a", 0], ["new", 3], ["User", 1], ["instance", 3], ["built", 3], ["from", 0], ["the", 0], ["data.", 1]]}, {"band": "mid", "text": "Return a new Message instance built from the data.", "code": "return Message(**data)", "overlap": 0.5, "overlap_ext": 0.5, "kind": "leading", "lang": "python", "repo": "local/paired_b", "cls": "referential", "cues": [], "hl": [["Return", 1], ["a", 0], ["new", 3], ["Message", 1], ["instance", 3], ["built", 3], ["from", 0], ["the", 0], ["data.", 1]]}, {"band": "mid", "text": "Return a new Job instance built from the data.", "code": "return Job(**data)", "overlap": 0.5, "overlap_ext": 0.5, "kind": "leading", "lang": "python", "repo": "local/paired_c", "cls": "referential", "cues": [], "hl": [["Return", 1], ["a", 0], ["new", 3], ["Job", 1], ["instance", 3], ["built", 3], ["from", 0], ["the", 0], ["data.", 1]]}, {"band": "mid", "text": "Loop through the entrys and sum the sizes", "code": "for _, entry := range entrys {\n\t\ttotal += entry.Size  \n\t}", "overlap": 0.5, "overlap_ext": 0.75, "kind": "leading", "lang": "go", "repo": "local/new_ai", "cls": "referential", "cues": [], "hl": [["Loop", 2], ["through", 0], ["the", 0], ["entrys", 1], ["and", 0], ["sum", 3], ["the", 0], ["sizes", 1]]}, {"band": "mid", "text": "Loop through each entry in the list.", "code": "for (Entry entry : entrys) {\n            if (entry.isValid()) {\n                result.add(entry);\n            }\n        }", "overlap": 0.33333, "overlap_ext": 0.66667, "kind": "leading", "lang": "java", "repo": "local/new_ai", "cls": "other", "cues": [], "hl": [["Loop", 2], ["through", 0], ["each", 0], ["entry", 1], ["in", 0], ["the", 0], ["list.", 3]]}, {"band": "mid", "text": "Try to fetch the invoice using the client.", "code": "return client.get(invoice_id)", "overlap": 0.5, "overlap_ext": 0.75, "kind": "leading", "lang": "python", "repo": "local/paired_c", "cls": "referential", "cues": [], "hl": [["Try", 3], ["to", 0], ["fetch", 2], ["the", 0], ["invoice", 1], ["using", 0], ["the", 0], ["client.", 1]]}, {"band": "mid", "text": "Loop through each user in the list.", "code": "for (User user : users) {\n            if (user.isValid()) {\n                result.add(user);\n            }\n        }", "overlap": 0.33333, "overlap_ext": 0.66667, "kind": "leading", "lang": "java", "repo": "local/paired_c", "cls": "other", "cues": [], "hl": [["Loop", 2], ["through", 0], ["each", 0], ["user", 1], ["in", 0], ["the", 0], ["list.", 3]]}, {"band": "mid", "text": "Return a new Report instance built from the data.", "code": "return Report(**data)", "overlap": 0.5, "overlap_ext": 0.5, "kind": "leading", "lang": "python", "repo": "local/paired_a", "cls": "referential", "cues": [], "hl": [["Return", 1], ["a", 0], ["new", 3], ["Report", 1], ["instance", 3], ["built", 3], ["from", 0], ["the", 0], ["data.", 1]]}, {"band": "mid", "text": "Return a new Payment instance built from the data.", "code": "return Payment(**data)", "overlap": 0.5, "overlap_ext": 0.5, "kind": "leading", "lang": "python", "repo": "local/paired_a", "cls": "referential", "cues": [], "hl": [["Return", 1], ["a", 0], ["new", 3], ["Payment", 1], ["instance", 3], ["built", 3], ["from", 0], ["the", 0], ["data.", 1]]}, {"band": "low", "text": "Handle the timeout error and wait before retrying.", "code": "time.sleep(2 ** attempt)", "overlap": 0.0, "overlap_ext": 0.2, "kind": "leading", "lang": "python", "repo": "local/paired_b", "cls": "other", "cues": [], "hl": [["Handle", 3], ["the", 0], ["timeout", 3], ["error", 3], ["and", 0], ["wait", 2], ["before", 0], ["retrying.", 3]]}, {"band": "low", "text": "Initialize the result list to store the valid products.", "code": "result = []", "overlap": 0.16667, "overlap_ext": 0.16667, "kind": "leading", "lang": "python", "repo": "local/paired_a", "cls": "other", "cues": [], "hl": [["Initialize", 3], ["the", 0], ["result", 1], ["list", 3], ["to", 0], ["store", 3], ["the", 0], ["valid", 3], ["products.", 3]]}, {"band": "low", "text": "Skip invalid entries to avoid crashing later on.", "code": "total := 0\n\tfor _, entry := range entrys {\n\t\ttotal += entry.Size  \n\t}\n\treturn total", "overlap": 0.16667, "overlap_ext": 0.16667, "kind": "leading", "lang": "go", "repo": "local/new_ai", "cls": "explanatory", "cues": ["history", "purpose"], "hl": [["Skip", 3], ["invalid", 3], ["entries", 1], ["to", 0], ["avoid", 3], ["crashing", 3], ["later", 3], ["on.", 0]]}, {"band": "low", "text": "Initialize the result list to store the valid accounts", "code": "result = []", "overlap": 0.16667, "overlap_ext": 0.16667, "kind": "leading", "lang": "python", "repo": "local/new_ai", "cls": "other", "cues": [], "hl": [["Initialize", 3], ["the", 0], ["result", 1], ["list", 3], ["to", 0], ["store", 3], ["the", 0], ["valid", 3], ["accounts", 3]]}, {"band": "low", "text": "Retry because the request may fail transiently.", "code": "return Config(**data)", "overlap": 0.0, "overlap_ext": 0.0, "kind": "leading", "lang": "python", "repo": "local/paired_a", "cls": "explanatory", "cues": ["cause"], "hl": [["Retry", 3], ["because", 0], ["the", 0], ["request", 3], ["may", 0], ["fail", 3], ["transiently.", 3]]}, {"band": "low", "text": "Initialize the result list to store the valid invoices.", "code": "result = []", "overlap": 0.16667, "overlap_ext": 0.16667, "kind": "leading", "lang": "python", "repo": "local/paired_a", "cls": "other", "cues": [], "hl": [["Initialize", 3], ["the", 0], ["result", 1], ["list", 3], ["to", 0], ["store", 3], ["the", 0], ["valid", 3], ["invoices.", 3]]}, {"band": "low", "text": "Initialize the result list to store the valid entrys", "code": "result = []", "overlap": 0.16667, "overlap_ext": 0.16667, "kind": "leading", "lang": "python", "repo": "local/paired_b", "cls": "other", "cues": [], "hl": [["Initialize", 3], ["the", 0], ["result", 1], ["list", 3], ["to", 0], ["store", 3], ["the", 0], ["valid", 3], ["entrys", 3]]}, {"band": "low", "text": "Initialize the result list to store the valid items.", "code": "result = []", "overlap": 0.16667, "overlap_ext": 0.16667, "kind": "leading", "lang": "python", "repo": "local/paired_a", "cls": "other", "cues": [], "hl": [["Initialize", 3], ["the", 0], ["result", 1], ["list", 3], ["to", 0], ["store", 3], ["the", 0], ["valid", 3], ["items.", 3]]}, {"band": "low", "text": "Skip invalid entries to avoid crashing later on.", "code": "for _, ticket := range tickets {\n\t\ttotal += ticket.Size  \n\t}", "overlap": 0.0, "overlap_ext": 0.0, "kind": "leading", "lang": "go", "repo": "local/paired_b", "cls": "explanatory", "cues": ["history", "purpose"], "hl": [["Skip", 3], ["invalid", 3], ["entries", 3], ["to", 0], ["avoid", 3], ["crashing", 3], ["later", 3], ["on.", 0]]}, {"band": "low", "text": "Initialize the result list to store the valid users", "code": "result = []", "overlap": 0.16667, "overlap_ext": 0.16667, "kind": "leading", "lang": "python", "repo": "local/paired_a", "cls": "other", "cues": [], "hl": [["Initialize", 3], ["the", 0], ["result", 1], ["list", 3], ["to", 0], ["store", 3], ["the", 0], ["valid", 3], ["users", 3]]}, {"band": "low", "text": "Initialize the result list to store the valid events.", "code": "result = []", "overlap": 0.16667, "overlap_ext": 0.16667, "kind": "leading", "lang": "python", "repo": "local/paired_c", "cls": "other", "cues": [], "hl": [["Initialize", 3], ["the", 0], ["result", 1], ["list", 3], ["to", 0], ["store", 3], ["the", 0], ["valid", 3], ["events.", 3]]}, {"band": "low", "text": "Handle the timeout error and wait before retrying", "code": "time.sleep(2 ** attempt)", "overlap": 0.0, "overlap_ext": 0.2, "kind": "leading", "lang": "python", "repo": "local/paired_a", "cls": "other", "cues": [], "hl": [["Handle", 3], ["the", 0], ["timeout", 3], ["error", 3], ["and", 0], ["wait", 2], ["before", 0], ["retrying", 3]]}, {"band": "low", "text": "Initialize the result list to store the valid invoices.", "code": "result = []", "overlap": 0.16667, "overlap_ext": 0.16667, "kind": "leading", "lang": "python", "repo": "local/paired_c", "cls": "other", "cues": [], "hl": [["Initialize", 3], ["the", 0], ["result", 1], ["list", 3], ["to", 0], ["store", 3], ["the", 0], ["valid", 3], ["invoices.", 3]]}, {"band": "low", "text": "Skip invalid entries to avoid crashing later on.", "code": "const result = [];", "overlap": 0.0, "overlap_ext": 0.0, "kind": "leading", "lang": "javascript", "repo": "local/paired_c", "cls": "explanatory", "cues": ["history", "purpose"], "hl": [["Skip", 3], ["invalid", 3], ["entries", 3], ["to", 0], ["avoid", 3], ["crashing", 3], ["later", 3], ["on.", 0]]}, {"band": "low", "text": "Retry because the request may fail transiently.", "code": "total += record.Size", "overlap": 0.0, "overlap_ext": 0.0, "kind": "inline", "lang": "go", "repo": "local/paired_b", "cls": "explanatory", "cues": ["cause"], "hl": [["Retry", 3], ["because", 0], ["the", 0], ["request", 3], ["may", 0], ["fail", 3], ["transiently.", 3]]}, {"band": "low", "text": "Retry because the request may fail transiently.", "code": "const data = await response.json();", "overlap": 0.0, "overlap_ext": 0.0, "kind": "leading", "lang": "javascript", "repo": "local/paired_c", "cls": "explanatory", "cues": ["cause"], "hl": [["Retry", 3], ["because", 0], ["the", 0], ["request", 3], ["may", 0], ["fail", 3], ["transiently.", 3]]}, {"band": "low", "text": "Retry because the request may fail transiently.", "code": "total += config.size", "overlap": 0.0, "overlap_ext": 0.0, "kind": "inline", "lang": "python", "repo": "local/new_ai", "cls": "explanatory", "cues": ["cause"], "hl": [["Retry", 3], ["because", 0], ["the", 0], ["request", 3], ["may", 0], ["fail", 3], ["transiently.", 3]]}, {"band": "low", "text": "Skip invalid entries to avoid crashing later on.", "code": "return Session(**data)", "overlap": 0.0, "overlap_ext": 0.0, "kind": "leading", "lang": "python", "repo": "local/paired_a", "cls": "explanatory", "cues": ["history", "purpose"], "hl": [["Skip", 3], ["invalid", 3], ["entries", 3], ["to", 0], ["avoid", 3], ["crashing", 3], ["later", 3], ["on.", 0]]}, {"band": "low", "text": "Handle the timeout error and wait before retrying.", "code": "time.sleep(2 ** attempt)", "overlap": 0.0, "overlap_ext": 0.2, "kind": "leading", "lang": "python", "repo": "local/new_ai", "cls": "other", "cues": [], "hl": [["Handle", 3], ["the", 0], ["timeout", 3], ["error", 3], ["and", 0], ["wait", 2], ["before", 0], ["retrying.", 3]]}], "human": [{"band": "mid", "text": "get the product from the list", "code": "total += product.size", "overlap": 0.33333, "overlap_ext": 0.33333, "kind": "inline", "lang": "python", "repo": "local/legacy_human", "cls": "other", "cues": [], "hl": [["get", 3], ["the", 0], ["product", 1], ["from", 0], ["the", 0], ["list", 3]]}, {"band": "mid", "text": "Order matters here: the token has to be validated before we touch the cache.", "code": "if (token.isValid()) {\n      result.push(token);\n    }", "overlap": 0.33333, "overlap_ext": 0.33333, "kind": "leading", "lang": "javascript", "repo": "local/paired_c", "cls": "other", "cues": ["first_person", "modal"], "hl": [["Order", 3], ["matters", 3], ["here:", 0], ["the", 0], ["token", 1], ["has", 0], ["to", 0], ["be", 0], ["validated", 1], ["before", 0], ["we", 0], ["touch", 3], ["the", 0], ["cache.", 3]]}, {"band": "low", "text": "This is O(n^2) but n is tiny in practice, so leave it alone for now.", "code": "data = json.load(handle)", "overlap": 0.0, "overlap_ext": 0.0, "kind": "leading", "lang": "python", "repo": "local/paired_b", "cls": "explanatory", "cues": ["contrast", "history"], "hl": [["This", 0], ["is", 0], ["O(n^2)", 0], ["but", 0], ["n", 0], ["is", 0], ["tiny", 3], ["in", 0], ["practice,", 3], ["so", 0], ["leave", 3], ["it", 0], ["alone", 3], ["for", 0], ["now.", 3]]}, {"band": "low", "text": "Temporary fix, the real solution needs the new storage layer.", "code": "result = []\n    for job in jobs:\n        if job.is_valid():\n            result.append(job)\n    return result", "overlap": 0.0, "overlap_ext": 0.0, "kind": "leading", "lang": "python", "repo": "local/legacy_human", "cls": "explanatory", "cues": ["history"], "hl": [["Temporary", 3], ["fix,", 3], ["the", 0], ["real", 3], ["solution", 3], ["needs", 3], ["the", 0], ["new", 3], ["storage", 3], ["layer.", 3]]}, {"band": "low", "text": "The docs say this is optional but the server rejects the request without it.", "code": "total := 0\n\tfor _, task := range tasks {\n\t\ttotal += task.Size\n\t}\n\treturn total", "overlap": 0.0, "overlap_ext": 0.0, "kind": "leading", "lang": "go", "repo": "local/paired_b", "cls": "explanatory", "cues": ["contrast", "negation"], "hl": [["The", 0], ["docs", 3], ["say", 3], ["this", 0], ["is", 0], ["optional", 3], ["but", 0], ["the", 0], ["server", 3], ["rejects", 3], ["the", 0], ["request", 3], ["without", 0], ["it.", 0]]}, {"band": "low", "text": "Off by one here because the header row is counted too.", "code": "for event in events:\n        total += event.size", "overlap": 0.0, "overlap_ext": 0.25, "kind": "leading", "lang": "python", "repo": "local/paired_c", "cls": "explanatory", "cues": ["cause"], "hl": [["Off", 0], ["by", 0], ["one", 3], ["here", 0], ["because", 0], ["the", 0], ["header", 3], ["row", 3], ["is", 0], ["counted", 2], ["too.", 0]]}, {"band": "low", "text": "Kludge to keep old jobs working until the migration finishes.", "code": "result.append(job)", "overlap": 0.14286, "overlap_ext": 0.14286, "kind": "inline", "lang": "python", "repo": "local/legacy_human", "cls": "explanatory", "cues": ["history", "purpose"], "hl": [["Kludge", 3], ["to", 0], ["keep", 3], ["old", 3], ["jobs", 1], ["working", 3], ["until", 0], ["the", 0], ["migration", 3], ["finishes.", 3]]}, {"band": "low", "text": "Temporary fix, the real solution needs the new storage layer.", "code": "return client.get(item_id)", "overlap": 0.0, "overlap_ext": 0.0, "kind": "leading", "lang": "python", "repo": "local/paired_b", "cls": "explanatory", "cues": ["history"], "hl": [["Temporary", 3], ["fix,", 3], ["the", 0], ["real", 3], ["solution", 3], ["needs", 3], ["the", 0], ["new", 3], ["storage", 3], ["layer.", 3]]}, {"band": "low", "text": "Workaround for a Windows path quirk, otherwise the order never resolves.", "code": "return Order(**data)", "overlap": 0.125, "overlap_ext": 0.125, "kind": "leading", "lang": "python", "repo": "local/legacy_human", "cls": "explanatory", "cues": ["condition", "history", "negation", "warning"], "hl": [["Workaround", 3], ["for", 0], ["a", 0], ["Windows", 3], ["path", 3], ["quirk,", 3], ["otherwise", 3], ["the", 0], ["order", 1], ["never", 3], ["resolves.", 3]]}, {"band": "low", "text": "Needed for backwards compatibility with the v1 export format.", "code": "const data = await response.json();", "overlap": 0.0, "overlap_ext": 0.0, "kind": "leading", "lang": "javascript", "repo": "local/legacy_human", "cls": "explanatory", "cues": ["history"], "hl": [["Needed", 3], ["for", 0], ["backwards", 3], ["compatibility", 3], ["with", 0], ["the", 0], ["v1", 3], ["export", 3], ["format.", 3]]}, {"band": "low", "text": "Don't use a set, we rely on the insertion order.", "code": "with open(path) as handle:\n        data = json.load(handle)\n    return Task(**data)", "overlap": 0.0, "overlap_ext": 0.0, "kind": "leading", "lang": "python", "repo": "local/legacy_human", "cls": "explanatory", "cues": ["first_person", "negation", "warning"], "hl": [["Don't", 3], ["use", 3], ["a", 0], ["set,", 3], ["we", 0], ["rely", 3], ["on", 0], ["the", 0], ["insertion", 3], ["order.", 3]]}, {"band": "low", "text": "Not pretty, but it avoids a second database round trip.", "code": "total := 0\n\tfor _, entry := range entrys {\n\t\ttotal += entry.Size  \n\t}\n\treturn total", "overlap": 0.0, "overlap_ext": 0.0, "kind": "leading", "lang": "go", "repo": "local/paired_b", "cls": "explanatory", "cues": ["contrast", "negation"], "hl": [["Not", 0], ["pretty,", 3], ["but", 0], ["it", 0], ["avoids", 3], ["a", 0], ["second", 3], ["database", 3], ["round", 3], ["trip.", 3]]}, {"band": "low", "text": "Edge case: the job can be empty when the job is cancelled mid-flight.", "code": "const result = [];", "overlap": 0.0, "overlap_ext": 0.0, "kind": "leading", "lang": "javascript", "repo": "local/legacy_human", "cls": "other", "cues": [], "hl": [["Edge", 3], ["case:", 3], ["the", 0], ["job", 3], ["can", 0], ["be", 0], ["empty", 3], ["when", 0], ["the", 0], ["job", 3], ["is", 0], ["cancelled", 3], ["mid-flight.", 3]]}, {"band": "low", "text": "We cap this at 10 since the vendor rate limits us, see the ticket.", "code": "List<Account> result = new ArrayList<>();", "overlap": 0.0, "overlap_ext": 0.0, "kind": "leading", "lang": "java", "repo": "local/paired_c", "cls": "explanatory", "cues": ["cause", "first_person", "reference"], "hl": [["We", 0], ["cap", 3], ["this", 0], ["at", 0], ["10", 0], ["since", 3], ["the", 0], ["vendor", 3], ["rate", 3], ["limits", 3], ["us,", 3], ["see", 3], ["the", 0], ["ticket.", 3]]}, {"band": "low", "text": "Workaround for a Windows path quirk, otherwise the entry never resolves.", "code": "data = json.load(handle)", "overlap": 0.0, "overlap_ext": 0.0, "kind": "leading", "lang": "python", "repo": "local/paired_a", "cls": "explanatory", "cues": ["condition", "history", "negation", "warning"], "hl": [["Workaround", 3], ["for", 0], ["a", 0], ["Windows", 3], ["path", 3], ["quirk,", 3], ["otherwise", 3], ["the", 0], ["entry", 3], ["never", 3], ["resolves.", 3]]}, {"band": "low", "text": "get the request from the list", "code": "time.sleep(2 ** attempt)", "overlap": 0.0, "overlap_ext": 0.0, "kind": "leading", "lang": "python", "repo": "local/paired_a", "cls": "other", "cues": [], "hl": [["get", 3], ["the", 0], ["request", 3], ["from", 0], ["the", 0], ["list", 3]]}, {"band": "low", "text": "Magic number from the spec, section 4.2.", "code": "total += product.Size", "overlap": 0.0, "overlap_ext": 0.25, "kind": "inline", "lang": "go", "repo": "local/paired_b", "cls": "explanatory", "cues": ["reference"], "hl": [["Magic", 3], ["number", 2], ["from", 0], ["the", 0], ["spec,", 3], ["section", 3], ["4.2.", 0]]}, {"band": "low", "text": "This is O(n^2) but n is tiny in practice, so leave it alone for now.", "code": "List<User> result = new ArrayList<>();", "overlap": 0.0, "overlap_ext": 0.0, "kind": "leading", "lang": "java", "repo": "local/legacy_human", "cls": "explanatory", "cues": ["contrast", "history"], "hl": [["This", 0], ["is", 0], ["O(n^2)", 0], ["but", 0], ["n", 0], ["is", 0], ["tiny", 3], ["in", 0], ["practice,", 3], ["so", 0], ["leave", 3], ["it", 0], ["alone", 3], ["for", 0], ["now.", 3]]}, {"band": "low", "text": "We used to sort here, but it made the report page painfully slow.", "code": "const response = await fetch(url);", "overlap": 0.0, "overlap_ext": 0.0, "kind": "leading", "lang": "javascript", "repo": "local/legacy_human", "cls": "explanatory", "cues": ["contrast", "first_person", "history"], "hl": [["We", 0], ["used", 3], ["to", 0], ["sort", 3], ["here,", 0], ["but", 0], ["it", 0], ["made", 3], ["the", 0], ["report", 3], ["page", 3], ["painfully", 3], ["slow.", 3]]}, {"band": "low", "text": "Off by one here because the header row is counted too.", "code": "for config in configs:\n        total += config.size", "overlap": 0.0, "overlap_ext": 0.25, "kind": "leading", "lang": "python", "repo": "local/paired_b", "cls": "explanatory", "cues": ["cause"], "hl": [["Off", 0], ["by", 0], ["one", 3], ["here", 0], ["because", 0], ["the", 0], ["header", 3], ["row", 3], ["is", 0], ["counted", 2], ["too.", 0]]}, {"band": "low", "text": "Not thread safe, callers must hold the lock first.", "code": "return client.get(payment_id)", "overlap": 0.0, "overlap_ext": 0.0, "kind": "leading", "lang": "python", "repo": "local/paired_a", "cls": "other", "cues": ["modal", "negation"], "hl": [["Not", 0], ["thread", 3], ["safe,", 3], ["callers", 3], ["must", 3], ["hold", 3], ["the", 0], ["lock", 3], ["first.", 3]]}, {"band": "low", "text": "Not pretty, but it avoids a second database round trip.", "code": "return new Payment(data);", "overlap": 0.0, "overlap_ext": 0.0, "kind": "leading", "lang": "javascript", "repo": "local/paired_a", "cls": "explanatory", "cues": ["contrast", "negation"], "hl": [["Not", 0], ["pretty,", 3], ["but", 0], ["it", 0], ["avoids", 3], ["a", 0], ["second", 3], ["database", 3], ["round", 3], ["trip.", 3]]}, {"band": "low", "text": "Not pretty, but it avoids a second database round trip.", "code": "const response = await fetch(url);", "overlap": 0.0, "overlap_ext": 0.0, "kind": "leading", "lang": "javascript", "repo": "local/legacy_human", "cls": "explanatory", "cues": ["contrast", "negation"], "hl": [["Not", 0], ["pretty,", 3], ["but", 0], ["it", 0], ["avoids", 3], ["a", 0], ["second", 3], ["database", 3], ["round", 3], ["trip.", 3]]}, {"band": "low", "text": "Probably fine, but I haven't tested it with unicode names.", "code": "const data = await response.json();", "overlap": 0.0, "overlap_ext": 0.0, "kind": "leading", "lang": "javascript", "repo": "local/paired_a", "cls": "explanatory", "cues": ["contrast", "first_person", "hedge"], "hl": [["Probably", 3], ["fine,", 3], ["but", 0], ["I", 0], ["haven't", 3], ["tested", 3], ["it", 0], ["with", 0], ["unicode", 3], ["names.", 3]]}, {"band": "low", "text": "TODO: remove this once we drop python 2 support.", "code": "for (Record record : records) {\n            if (record.isValid()) {\n                result.add(record);\n            }\n        }", "overlap": 0.0, "overlap_ext": 0.0, "kind": "leading", "lang": "java", "repo": "local/paired_c", "cls": "explanatory", "cues": ["first_person", "tag"], "hl": [["TODO:", 3], ["remove", 3], ["this", 0], ["once", 0], ["we", 0], ["drop", 3], ["python", 3], ["2", 0], ["support.", 3]]}, {"band": "low", "text": "We used to sort here, but it made the report page painfully slow.", "code": "total = 0\n    for event in events:\n        total += event.size\n    return total", "overlap": 0.0, "overlap_ext": 0.0, "kind": "leading", "lang": "python", "repo": "local/paired_b", "cls": "explanatory", "cues": ["contrast", "first_person", "history"], "hl": [["We", 0], ["used", 3], ["to", 0], ["sort", 3], ["here,", 0], ["but", 0], ["it", 0], ["made", 3], ["the", 0], ["report", 3], ["page", 3], ["painfully", 3], ["slow.", 3]]}, {"band": "low", "text": "Needed for backwards compatibility with the v1 export format.", "code": "return client.get(account_id)", "overlap": 0.0, "overlap_ext": 0.0, "kind": "leading", "lang": "python", "repo": "local/paired_a", "cls": "explanatory", "cues": ["history"], "hl": [["Needed", 3], ["for", 0], ["backwards", 3], ["compatibility", 3], ["with", 0], ["the", 0], ["v1", 3], ["export", 3], ["format.", 3]]}, {"band": "low", "text": "FIXME: this breaks when two invoices share a name, nobody noticed yet.", "code": "const response = await fetch(url);", "overlap": 0.0, "overlap_ext": 0.0, "kind": "leading", "lang": "javascript", "repo": "local/paired_a", "cls": "explanatory", "cues": ["tag"], "hl": [["FIXME:", 3], ["this", 0], ["breaks", 3], ["when", 0], ["two", 3], ["invoices", 3], ["share", 3], ["a", 0], ["name,", 3], ["nobody", 3], ["noticed", 3], ["yet.", 0]]}, {"band": "low", "text": "Skip these on purpose, they are handled by the nightly batch instead.", "code": "const result = [];", "overlap": 0.0, "overlap_ext": 0.0, "kind": "leading", "lang": "javascript", "repo": "local/legacy_human", "cls": "other", "cues": [], "hl": [["Skip", 3], ["these", 0], ["on", 0], ["purpose,", 3], ["they", 0], ["are", 0], ["handled", 3], ["by", 0], ["the", 0], ["nightly", 3], ["batch", 3], ["instead.", 3]]}, {"band": "low", "text": "Workaround for a Windows path quirk, otherwise the user never resolves.", "code": "time.sleep(2 ** attempt)", "overlap": 0.0, "overlap_ext": 0.0, "kind": "leading", "lang": "python", "repo": "local/paired_b", "cls": "explanatory", "cues": ["condition", "history", "negation", "warning"], "hl": [["Workaround", 3], ["for", 0], ["a", 0], ["Windows", 3], ["path", 3], ["quirk,", 3], ["otherwise", 3], ["the", 0], ["user", 3], ["never", 3], ["resolves.", 3]]}, {"band": "low", "text": "This is O(n^2) but n is tiny in practice, so leave it alone for now.", "code": "List<Product> result = new ArrayList<>();", "overlap": 0.0, "overlap_ext": 0.0, "kind": "leading", "lang": "java", "repo": "local/paired_c", "cls": "explanatory", "cues": ["contrast", "history"], "hl": [["This", 0], ["is", 0], ["O(n^2)", 0], ["but", 0], ["n", 0], ["is", 0], ["tiny", 3], ["in", 0], ["practice,", 3], ["so", 0], ["leave", 3], ["it", 0], ["alone", 3], ["for", 0], ["now.", 3]]}, {"band": "low", "text": "This is O(n^2) but n is tiny in practice, so leave it alone for now.", "code": "total = 0", "overlap": 0.0, "overlap_ext": 0.0, "kind": "leading", "lang": "python", "repo": "local/paired_a", "cls": "explanatory", "cues": ["contrast", "history"], "hl": [["This", 0], ["is", 0], ["O(n^2)", 0], ["but", 0], ["n", 0], ["is", 0], ["tiny", 3], ["in", 0], ["practice,", 3], ["so", 0], ["leave", 3], ["it", 0], ["alone", 3], ["for", 0], ["now.", 3]]}, {"band": "low", "text": "Edge case: the event can be empty when the job is cancelled mid-flight.", "code": "for event in events:\n        total += event.size", "overlap": 0.125, "overlap_ext": 0.125, "kind": "leading", "lang": "python", "repo": "local/paired_b", "cls": "other", "cues": [], "hl": [["Edge", 3], ["case:", 3], ["the", 0], ["event", 1], ["can", 0], ["be", 0], ["empty", 3], ["when", 0], ["the", 0], ["job", 3], ["is", 0], ["cancelled", 3], ["mid-flight.", 3]]}, {"band": "low", "text": "Kludge to keep old users working until the migration finishes.", "code": "const data = await response.json();", "overlap": 0.0, "overlap_ext": 0.0, "kind": "leading", "lang": "javascript", "repo": "local/legacy_human", "cls": "explanatory", "cues": ["history", "purpose"], "hl": [["Kludge", 3], ["to", 0], ["keep", 3], ["old", 3], ["users", 3], ["working", 3], ["until", 0], ["the", 0], ["migration", 3], ["finishes.", 3]]}, {"band": "low", "text": "Temporary fix, the real solution needs the new storage layer.", "code": "total = 0\n    for token in tokens:\n        total += token.size\n    return total", "overlap": 0.0, "overlap_ext": 0.0, "kind": "leading", "lang": "python", "repo": "local/paired_a", "cls": "explanatory", "cues": ["history"], "hl": [["Temporary", 3], ["fix,", 3], ["the", 0], ["real", 3], ["solution", 3], ["needs", 3], ["the", 0], ["new", 3], ["storage", 3], ["layer.", 3]]}, {"band": "low", "text": "FIXME: this breaks when two users share a name, nobody noticed yet.", "code": "const data = await response.json();", "overlap": 0.0, "overlap_ext": 0.0, "kind": "leading", "lang": "javascript", "repo": "local/paired_c", "cls": "explanatory", "cues": ["tag"], "hl": [["FIXME:", 3], ["this", 0], ["breaks", 3], ["when", 0], ["two", 3], ["users", 3], ["share", 3], ["a", 0], ["name,", 3], ["nobody", 3], ["noticed", 3], ["yet.", 0]]}, {"band": "low", "text": "Needed for backwards compatibility with the v1 export format.", "code": "for request in requests:\n        if request.is_valid():\n            result.append(request)", "overlap": 0.0, "overlap_ext": 0.0, "kind": "leading", "lang": "python", "repo": "local/paired_b", "cls": "explanatory", "cues": ["history"], "hl": [["Needed", 3], ["for", 0], ["backwards", 3], ["compatibility", 3], ["with", 0], ["the", 0], ["v1", 3], ["export", 3], ["format.", 3]]}, {"band": "low", "text": "TODO: remove this once we drop python 2 support.", "code": "result.push(entry);", "overlap": 0.0, "overlap_ext": 0.0, "kind": "inline", "lang": "javascript", "repo": "local/paired_a", "cls": "explanatory", "cues": ["first_person", "tag"], "hl": [["TODO:", 3], ["remove", 3], ["this", 0], ["once", 0], ["we", 0], ["drop", 3], ["python", 3], ["2", 0], ["support.", 3]]}, {"band": "low", "text": "Magic number from the spec, section 4.2.", "code": "result.push(task);", "overlap": 0.0, "overlap_ext": 0.0, "kind": "inline", "lang": "javascript", "repo": "local/paired_a", "cls": "explanatory", "cues": ["reference"], "hl": [["Magic", 3], ["number", 3], ["from", 0], ["the", 0], ["spec,", 3], ["section", 3], ["4.2.", 0]]}, {"band": "low", "text": "FIXME: this breaks when two jobs share a name, nobody noticed yet.", "code": "result.push(job);", "overlap": 0.125, "overlap_ext": 0.125, "kind": "inline", "lang": "javascript", "repo": "local/legacy_human", "cls": "explanatory", "cues": ["tag"], "hl": [["FIXME:", 3], ["this", 0], ["breaks", 3], ["when", 0], ["two", 3], ["jobs", 1], ["share", 3], ["a", 0], ["name,", 3], ["nobody", 3], ["noticed", 3], ["yet.", 0]]}, {"band": "low", "text": "HACK: the parser chokes on empty lines, so we pad them. See #412.", "code": "with open(path) as handle:\n        data = json.load(handle)\n    return Order(**data)", "overlap": 0.0, "overlap_ext": 0.0, "kind": "leading", "lang": "python", "repo": "local/paired_a", "cls": "explanatory", "cues": ["first_person", "history", "reference", "tag"], "hl": [["HACK:", 3], ["the", 0], ["parser", 3], ["chokes", 3], ["on", 0], ["empty", 3], ["lines,", 3], ["so", 0], ["we", 0], ["pad", 3], ["them.", 0], ["See", 3], ["#412.", 0]]}, {"band": "low", "text": "HACK: the parser chokes on empty lines, so we pad them. See #412.", "code": "List<Node> result = new ArrayList<>();", "overlap": 0.0, "overlap_ext": 0.0, "kind": "leading", "lang": "java", "repo": "local/legacy_human", "cls": "explanatory", "cues": ["first_person", "history", "reference", "tag"], "hl": [["HACK:", 3], ["the", 0], ["parser", 3], ["chokes", 3], ["on", 0], ["empty", 3], ["lines,", 3], ["so", 0], ["we", 0], ["pad", 3], ["them.", 0], ["See", 3], ["#412.", 0]]}]}};
+</script>
+<script>
+"use strict";
+const S = DATA.summary, EX = DATA.examples;
+const SRC = ["ai", "human"], NAME = { ai: "AI", human: "Человек" };
+const $ = (id) => document.getElementById(id);
+const NS = "http://www.w3.org/2000/svg";
+const state = { lang: "all", metric: "strict", theta: S.theta, wmode: "dist", exN: 0 };
+const fmt = (x, d = 2) => (x == null ? "-" : x.toFixed(d));
+const pct = (x, d = 1) => (x == null ? "-" : (100 * x).toFixed(d) + "%");
+const KIND_RU = { inline: "inline", leading: "leading", block: "block", detached: "detached", doc: "doc" };
+const CLASS = [["referential", "Referential", "var(--c-ref)"], ["explanatory", "Explanatory", "var(--c-expl)"],
+               ["other", "Other", "var(--c-other)"], ["undecided", "Не определено", "var(--c-none)"]];
+
+/* ---------- глоссарий: непонятные слова и термины объясняются при наведении ---------- */
+const GLOSS = {
+  overlap: "Доля содержательных слов комментария, которые уже есть в соседнем коде.",
+  theta: "Порог θ: при каком overlap комментарий считают «пересказом» (referential).",
+  or: "Odds ratio, отношение шансов: во сколько раз шансы встретить это слово выше в одной группе, чем в другой. OR = 1 - разницы нет.",
+  q: "p-value после поправки на то, что проверяется много слов сразу (Бенджамини-Хохберг). Показывает, какая доля находок может быть случайной.",
+  p: "Вероятность получить такое или более крайнее различие, если на самом деле никакой разницы нет.",
+  delta: "Cliff's δ - размер эффекта: доля пар наблюдений, где значение AI больше, минус доля пар, где оно меньше. 0 - разницы нет, 1 - группы не пересекаются.",
+  mw: "Критерий Манна-Уитни: сравнивает не средние, а порядок значений - годится, когда среди данных много одинаковых чисел.",
+  cramer: "Cramér's V - насколько сильно источник (AI/человек) связан с типом комментария: 0 - нет связи, 1 - полная связь.",
+  referential: "Комментарий пересказывает код: доля его содержательных слов, совпавших с кодом, не меньше порога θ.",
+  explanatory: "В комментарии есть маркер «почему»: причина, цель, предупреждение, ссылка на источник и т.п.",
+  other: "Комментарий распознан, но не подошёл ни под referential, ни под explanatory.",
+  ci: "Доверительный интервал: диапазон, где с 95% вероятностью лежит настоящая разница между AI и человеком.",
+  url: "Комментарий содержит адрес веб-страницы (http/https).",
+  issue: "Комментарий ссылается на карточку в трекере задач - номер вида #412 или слово issue/ticket.",
+  gloss: "Так помечены места, где можно навести курсор и увидеть объяснение - без этого текста было бы ещё непонятнее.",
+  kind_inline: "Комментарий в конце строки кода - на той же строке, что и код (inline = «в строке»).",
+  kind_leading: "Комментарий над кодом, к которому относится: сам код начинается на следующей строке (leading = «идущий перед»).",
+  kind_block: "Комментарий в блочной форме /* … */ - может занимать несколько строк (block = «блок»).",
+  kind_detached: "Комментарий не привязан ни к какому коду: после него пустая строка, или в файле больше ничего нет (detached = «оторванный»).",
+  kind_doc: "Докстринг - служебный комментарий-документация сразу после объявления функции или класса. Его читают не только люди, но и инструменты автогенерации документации: JSDoc в JavaScript/TypeScript, Javadoc в Java, обычная строка в тройных кавычках в Python.",
+};
+function gt(key, text) {
+  const s = document.createElement("span");
+  s.className = "gloss"; s.tabIndex = 0; s.textContent = text;
+  hover(s, () => esc(GLOSS[key] || text));
+  return s;
+}
+
+function h(tag, attrs, ...kids) {
+  const el = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs || {})) {
+    if (k === "class") el.className = v; else if (k === "html") el.innerHTML = v;
+    else if (k.startsWith("on")) el.addEventListener(k.slice(2), v); else if (v !== false && v != null) el.setAttribute(k, v);
+  }
+  for (const k of kids.flat(Infinity)) if (k != null) el.append(k.nodeType ? k : document.createTextNode(k));
+  return el;
+}
+function sv(tag, attrs, ...kids) {
+  const el = document.createElementNS(NS, tag);
+  for (const [k, v] of Object.entries(attrs || {})) if (v != null) el.setAttribute(k, v);
+  for (const k of kids.flat(Infinity)) if (k != null) el.append(k.nodeType ? k : document.createTextNode(k));
+  return el;
+}
+const esc = (t) => String(t).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+/* ---------- подсказка ---------- */
+const tip = $("tip");
+function tipShow(ev, html) {
+  tip.innerHTML = html; tip.style.opacity = 1;
+  const r = tip.getBoundingClientRect();
+  let x = ev.clientX + 14, y = ev.clientY + 14;
+  if (x + r.width > innerWidth - 8) x = ev.clientX - r.width - 14;
+  if (y + r.height > innerHeight - 8) y = ev.clientY - r.height - 14;
+  tip.style.left = x + "px"; tip.style.top = y + "px";
+}
+const tipHide = () => (tip.style.opacity = 0);
+function hover(el, htmlFn) {
+  el.addEventListener("mousemove", (e) => tipShow(e, htmlFn(e)));
+  el.addEventListener("mouseleave", tipHide);
+  el.addEventListener("focus", () => { const r = el.getBoundingClientRect(); tipShow({ clientX: r.left, clientY: r.top }, htmlFn({})); });
+  el.addEventListener("blur", tipHide);
+}
+
+/* ---------- перетаскивание порога θ: общая логика для гистограммы и графика чувствительности ---------- */
+// handle - невидимая зона захвата этого конкретного графика; invX(clientX) переводит координату
+// курсора в «сырое» значение θ по масштабу ИМЕННО этого графика; updateVisual(t) дёшево двигает
+// линию/подпись/заливку внутри него самого (сам график не перерисовывается во время перетаскивания -
+// это и есть то, из-за чего раньше терялся захват курсора); onSettle() раз в кадр (requestAnimationFrame)
+// обновляет ДРУГИЕ графики, зависящие от θ, кроме этого - самого текущего перерисовывать нельзя,
+// пока его же элемент держит захват указателя.
+function wireThetaHandle(handle, { invX, updateVisual, onSettle, min = 0.2, max = 0.9 }) {
+  const clampTheta = (v) => Math.min(max, Math.max(min, Math.round(v * 100) / 100));
+  let raf = null;
+  const commit = (t) => {
+    if (t === state.theta) return;
+    state.theta = t; updateVisual(t); handle.setAttribute("aria-valuenow", t);
+    $("thetaV").textContent = t.toFixed(2); $("theta").value = t;
+    if (raf) return;
+    raf = requestAnimationFrame(() => { raf = null; onSettle(); });
+  };
+  handle.addEventListener("pointerdown", (e) => {
+    handle.setPointerCapture(e.pointerId);
+    const onMove = (ev) => commit(clampTheta(invX(ev.clientX)));
+    const onUp = () => {
+      handle.removeEventListener("pointermove", onMove); handle.removeEventListener("pointerup", onUp); handle.removeEventListener("pointercancel", onUp);
+      if (raf) { cancelAnimationFrame(raf); raf = null; }
+      renderAll();
+    };
+    handle.addEventListener("pointermove", onMove); handle.addEventListener("pointerup", onUp); handle.addEventListener("pointercancel", onUp);
+    e.preventDefault();
+  });
+  handle.addEventListener("keydown", (e) => {
+    const step = e.key === "PageUp" ? 0.05 : e.key === "PageDown" ? -0.05 : e.key === "ArrowRight" || e.key === "ArrowUp" ? 0.01 : e.key === "ArrowLeft" || e.key === "ArrowDown" ? -0.01 : null;
+    if (step == null) return;
+    e.preventDefault(); state.theta = clampTheta(state.theta + step); updateVisual(state.theta);
+    handle.setAttribute("aria-valuenow", state.theta); $("thetaV").textContent = state.theta.toFixed(2); $("theta").value = state.theta;
+    renderAll();
+  });
+}
+
+/* ---------- данные по срезу ---------- */
+const hkey = () => (state.metric === "ext" ? ["hist_ext", "hist_nocue_ext"] : ["hist", "hist_nocue"]);
+const block = (src) => S.overlap.hist[src][state.lang] || S.overlap.hist[src].all;
+const sumFrom = (arr, theta) => { let s = 0; for (let i = Math.ceil(theta * S.overlap.bins - 1e-9); i < arr.length; i++) s += arr[i]; return s; };
+function mixAt(src, theta) {
+  const b = block(src), [, nk] = hkey();
+  const classified = b.classified, ref = sumFrom(b[nk], theta), expl = b.cue;
+  const other = Math.max(0, classified - ref - expl);
+  return { ref, expl, other, undecided: Math.max(0, b.n - classified), classified, n: b.n,
+           refShare: classified ? ref / classified : null, explShare: classified ? expl / classified : null };
+}
+function histMean(arr) {
+  const tot = arr.reduce((a, b) => a + b, 0); if (!tot) return null;
+  return arr.reduce((s, v, i) => s + ((i + 0.5) / arr.length) * v, 0) / tot;   // середина корзины: ошибка ≤ 0.5/число корзин
+}
+function histQ(arr, q) {
+  const tot = arr.reduce((a, b) => a + b, 0); if (!tot) return null;
+  let acc = 0; const w = 1 / arr.length;
+  for (let i = 0; i < arr.length; i++) { if (acc + arr[i] >= q * tot) return (i + (q * tot - acc) / arr[i]) * w; acc += arr[i]; }
+  return 1;
+}
+
+/* ---------- KPI ---------- */
+function renderKpis() {
+  const t = state.theta, mA = mixAt("ai", t), mH = mixAt("human", t), sz = S.sizes;
+  const dA = S.overlap.describe[state.metric === "ext" ? "overlap_ext" : "overlap"];
+  const useExact = state.lang === "all";
+  const med = (src) => (useExact ? dA[src].median : histQ(block(src)[hkey()[0]], 0.5));
+  const bs = S.referential.bootstrap.referential, mw = S.overlap.mann_whitney[state.metric === "ext" ? "overlap_ext" : "overlap"];
+  const tile = (lbl, rows, small) => h("div", { class: "card tile" }, h("div", { class: "lbl" }, lbl),
+    h("div", { class: "row" }, rows.map(([cls, txt]) => h("div", { class: "kv" }, h("div", { class: "who" }, h("span", { class: "dot " + cls }), NAME[cls]), h("div", { class: "big" }, txt)))),
+    small ? h("div", { class: "small" }, small) : null);
+  const mean = (src) => (useExact ? dA[src].mean : histMean(block(src)[hkey()[0]]));
+  const diff = mA.refShare != null && mH.refShare != null ? mA.refShare - mH.refShare : null;
+  const diffE = mA.explShare != null && mH.explShare != null ? mA.explShare - mH.explShare : null;
+  const dTxt = (d) => (d == null ? "-" : (d >= 0 ? "+" : "−") + Math.abs(100 * d).toFixed(1) + " п.п.");
+  const ciFor = (b) => (b && b.lo != null ? `95% ДИ по репозиториям: [${(100 * b.lo).toFixed(1)}; ${(100 * b.hi).toFixed(1)}] п.п.` : "ДИ не определён: нужно ≥ 2 репозиториев в каждой группе");
+  const exactCtx = Math.abs(t - S.theta) < 1e-9 && state.lang === "all";
+  const ciNote = exactCtx ? ciFor(bs) : `ДИ посчитан при θ=${S.theta}, все языки`;
+  const ciE = state.lang === "all" ? ciFor(S.referential.bootstrap.explanatory) : "";
+  $("kpis").replaceChildren(
+    tile("Комментариев в анализе" + (state.lang === "all" ? "" : " (" + state.lang + ")"), SRC.map((s) => [s, block(s).n.toLocaleString("ru")]), `репозиториев (все языки): AI ${sz.ai.repos}, человек ${sz.human.repos}; докстрингов: ${sz.ai.docs} / ${sz.human.docs}`),
+    // Обе доли рядом: referential зависит от θ, explanatory - нет (это наличие маркера «почему»).
+    h("div", { class: "card tile" }, h("div", { class: "lbl" }, `Доли referential и explanatory (θ=${t.toFixed(2)})`),
+      h("div", { class: "row" }, [["ai", mA], ["human", mH]].map(([s, m]) => h("div", { class: "kv" },
+        h("div", { class: "who" }, h("span", { class: "dot " + s }), NAME[s]),
+        h("div", { class: "sub2" }, gt("referential", "Referential")), h("div", { class: "big" }, pct(m.refShare)),
+        h("div", { class: "sub2" }, gt("explanatory", "Explanatory")), h("div", { class: "big md" }, pct(m.explShare)),
+        h("div", { class: "sub2" }, gt("other", "прочее (other)"), `: ${pct(m.classified ? m.other / m.classified : null)}`)))),
+      h("div", { class: "small" }, `Доли от комментариев, для которых функция определена. Референциальных: AI − человек = ${dTxt(diff)} · ${ciNote}`),
+      h("div", { class: "small" }, `Объясняющих: AI − человек = ${dTxt(diffE)}${ciE ? " · " + ciE : ""}`)),
+    // Среднее, а не медиана: у дискретной метрики (дробь k/n) медиана всегда совпадает с одной из
+    // «точек массы» (0.5, 0.75…) и почти ничего не говорит.
+    tile("Средний overlap", SRC.map((s) => [s, fmt(mean(s))]), `Медиана: AI ${fmt(med("ai"))}, человек ${fmt(med("human"))} - у дискретной метрики она совпадает с «точками массы» (0.5, 0.75…), поэтому главным взято среднее. ${useExact ? "Все языки, точные значения." : "По гистограмме, ±0.005."}`),
+    h("div", { class: "card tile" }, h("div", { class: "lbl" }, "Размер эффекта (", gt("delta", "Cliff's δ"), ")"),
+      h("div", { class: "big" }, mw.cliffs_delta == null ? "-" : (mw.cliffs_delta >= 0 ? "+" : "") + mw.cliffs_delta.toFixed(2)),
+      h("div", { class: "small" }, `${mw.effect || ""} · `, gt("p", "p"), ` ${mw.p == null ? "-" : mw.p < 0.001 ? "< 0.001" : "= " + mw.p.toFixed(3)} (`, gt("mw", "Манн-Уитни"), `, все языки). δ > 0: overlap у AI выше.`)));
+}
+
+/* ---------- линейные графики ---------- */
+function lineChart(root, { series, xmin, xmax, ymax, xticks, yfmt, xfmt, marker, shadeFrom, height = 250, xlabel, draggable, onDragSettle }) {
+  const W = 640, H = height, m = { l: 44, r: 62, t: 10, b: 30 };
+  const X = (x) => m.l + ((x - xmin) / (xmax - xmin)) * (W - m.l - m.r), Y = (y) => H - m.b - (y / ymax) * (H - m.t - m.b);
+  const svg = sv("svg", { viewBox: `0 0 ${W} ${H}`, class: "cloud", role: "img", "aria-label": xlabel || "график" });
+  for (let i = 0; i <= 4; i++) {
+    const y = (ymax * i) / 4;
+    svg.append(sv("line", { class: "gridl", x1: m.l, x2: W - m.r, y1: Y(y), y2: Y(y) }), sv("text", { x: m.l - 6, y: Y(y) + 4, "text-anchor": "end" }, yfmt(y)));
+  }
+  svg.append(sv("line", { x1: m.l, x2: W - m.r, y1: H - m.b, y2: H - m.b, stroke: "var(--axis)" }));
+  for (const t of xticks) svg.append(sv("text", { x: X(t), y: H - m.b + 16, "text-anchor": "middle" }, xfmt(t)));
+  if (xlabel) svg.append(sv("text", { x: (m.l + W - m.r) / 2, y: H - 2, "text-anchor": "middle" }, xlabel));
+  if (shadeFrom != null) {
+    svg.append(sv("rect", { x: X(shadeFrom), y: m.t, width: X(xmax) - X(shadeFrom), height: H - m.t - m.b, fill: "var(--grid)", opacity: 0.55 }));
+  }
+  const labels = [];
+  for (const s of series) {
+    const d = s.points.map(([x, y], i) => (i ? "L" : "M") + X(x).toFixed(1) + " " + Y(y).toFixed(1)).join("");
+    svg.append(sv("path", { d, fill: "none", stroke: s.color, "stroke-width": 2, "stroke-linejoin": "round" }));
+    const last = s.points[s.points.length - 1];
+    labels.push({ name: s.name, x: X(last[0]) + 6, y: Y(last[1]) + 4 });
+  }
+  // Подписи концов линий: если линии заканчиваются рядом, второй подпись сдвигается вниз,
+  // иначе «AI» и «Человек» печатаются друг поверх друга.
+  labels.sort((a, b) => a.y - b.y);
+  for (let i = 1; i < labels.length; i++) if (labels[i].y - labels[i - 1].y < 15) labels[i].y = labels[i - 1].y + 15;
+  for (const l of labels) svg.append(sv("text", { class: "lbl-ai", x: l.x, y: l.y }, l.name));
+  let markerHandle = null;
+  if (marker != null) {
+    const markerLine = sv("line", { x1: X(marker), x2: X(marker), y1: m.t, y2: H - m.b, stroke: "var(--ink)", "stroke-width": 1.5, "stroke-dasharray": "4 3" });
+    const markerLabel = sv("text", { x: X(marker), y: m.t + 9, "text-anchor": "middle", style: `fill:var(--ink);font-weight:600${draggable ? ";pointer-events:none" : ""}` }, "θ");
+    svg.append(markerLine, markerLabel);
+    if (draggable) {
+      markerHandle = sv("rect", {
+        x: X(marker) - 12, y: 0, width: 24, height: H - m.b, fill: "transparent",
+        style: "cursor:ew-resize", tabindex: 0, role: "slider", "aria-label": "Порог θ (перетащите или используйте стрелки)",
+        "aria-valuemin": xmin, "aria-valuemax": xmax, "aria-valuenow": marker,
+      });
+      // append - ниже, после catcher: catcher закрывает собой всю область графика (для подсказки
+      // при наведении), и если добавить сюда же, он перекроет markerHandle и клик до неё не дойдёт.
+      hover(markerHandle, () => esc(GLOSS.theta) + " Перетащите, чтобы изменить.");
+      wireThetaHandle(markerHandle, {
+        min: xmin, max: xmax,
+        invX: (clientX) => { const r = svg.getBoundingClientRect(); return xmin + (((clientX - r.left) / r.width) * W - m.l) / (W - m.l - m.r) * (xmax - xmin); },
+        updateVisual: (t) => {
+          markerLine.setAttribute("x1", X(t)); markerLine.setAttribute("x2", X(t));
+          markerLabel.setAttribute("x", X(t)); markerHandle.setAttribute("x", X(t) - 12);
+        },
+        onSettle: onDragSettle || (() => {}),
+      });
+    }
+  }
+  // невидимый слой ловит указатель: подсказка со значениями ближайшей точки
+  const catcher = sv("rect", { x: m.l, y: m.t, width: W - m.l - m.r, height: H - m.t - m.b, fill: "transparent", tabindex: 0 });
+  const guide = sv("line", { y1: m.t, y2: H - m.b, stroke: "var(--muted)", "stroke-width": 1, opacity: 0 });
+  svg.append(guide, catcher);
+  if (markerHandle) svg.append(markerHandle);
+  const nearest = (ev) => {
+    const r = svg.getBoundingClientRect(), px = ((ev.clientX - r.left) / r.width) * W;
+    const xv = xmin + ((px - m.l) / (W - m.l - m.r)) * (xmax - xmin);
+    let best = series[0].points[0][0];
+    for (const [x] of series[0].points) if (Math.abs(x - xv) < Math.abs(best - xv)) best = x;
+    return best;
+  };
+  const html = (x) => `<b>${xfmt(x)}</b><br>` + series.map((s) => `${s.name}: ${yfmt(s.points.find((p) => p[0] === x)?.[1])}`).join("<br>");
+  catcher.addEventListener("mousemove", (e) => {
+    const x = nearest(e); guide.setAttribute("x1", X(x)); guide.setAttribute("x2", X(x)); guide.setAttribute("opacity", 1); tipShow(e, html(x));
+  });
+  catcher.addEventListener("mouseleave", () => { guide.setAttribute("opacity", 0); tipHide(); });
+  root.replaceChildren(svg);
+}
+
+function table(rows, cols) {
+  return h("table", {}, h("thead", {}, h("tr", {}, cols.map((c) => h("th", { class: c.num ? "num" : "" }, c.h)))),
+    h("tbody", {}, rows.map((r) => h("tr", {}, cols.map((c) => h("td", { class: c.num ? "num" : "" }, c.f(r)))))));
+}
+
+function renderHist() {
+  // Гистограмма: 20 столбиков шириной 0.05, собранных из 100 корзин по 0.01. Столбики, а не линия:
+  // overlap принимает мало разных значений (k/n), и линия по корзинам выглядела «расчёской с нулями».
+  const [hk] = hkey(), B = S.overlap.bins, G = 20, per = B / G, tot = {}, grp = {};
+  for (const s of SRC) {
+    const a = block(s)[hk]; tot[s] = a.reduce((x, y) => x + y, 0);
+    grp[s] = Array.from({ length: G }, (_, g) => a.slice(g * per, (g + 1) * per).reduce((x, y) => x + y, 0));
+  }
+  const share = (s, g) => (tot[s] ? grp[s][g] / tot[s] : 0);
+  const ymax = Math.max(0.05, ...SRC.flatMap((s) => grp[s].map((_, g) => share(s, g)))) * 1.1;
+  const W = 640, H = 260, m = { l: 44, r: 12, t: 34, b: 34 }, iw = W - m.l - m.r;
+  const X = (x) => m.l + x * iw, Y = (y) => H - m.b - (y / ymax) * (H - m.t - m.b);
+  const svg = sv("svg", { viewBox: `0 0 ${W} ${H}`, class: "cloud", role: "img", "aria-label": "Гистограмма overlap у AI и человека" });
+  for (let i = 0; i <= 4; i++) {
+    const y = (ymax * i) / 4;
+    svg.append(sv("line", { class: "gridl", x1: m.l, x2: W - m.r, y1: Y(y), y2: Y(y) }), sv("text", { x: m.l - 6, y: Y(y) + 4, "text-anchor": "end" }, (100 * y).toFixed(0) + "%"));
+  }
+  const shade = sv("rect", { x: X(state.theta), y: m.t, width: X(1) - X(state.theta), height: H - m.t - m.b, fill: "var(--grid)", opacity: 0.55 });
+  svg.append(shade);
+  const gw = iw / G;
+  for (let g = 0; g < G; g++) {
+    const lo = (g / G).toFixed(2), hi = ((g + 1) / G).toFixed(2);
+    SRC.forEach((s, k) => {
+      const v = share(s, g), y = Y(v);
+      const r = sv("rect", { x: X(g / G) + gw * (0.08 + 0.44 * k), y, width: gw * 0.4, height: Math.max(0, Y(0) - y), rx: 2, fill: `var(--${s})`, tabindex: 0 });
+      hover(r, () => `<b>overlap ${lo}-${hi}</b><br>${NAME[s]}: ${pct(v)} (${grp[s][g].toLocaleString("ru")} комм.)`);
+      svg.append(r);
+    });
+  }
+  svg.append(sv("line", { x1: m.l, x2: W - m.r, y1: H - m.b, y2: H - m.b, stroke: "var(--axis)" }));
+  for (const t of [0, 0.2, 0.4, 0.6, 0.8, 1]) svg.append(sv("text", { x: X(t), y: H - m.b + 16, "text-anchor": "middle" }, t.toFixed(1)));
+  svg.append(sv("text", { x: m.l + iw / 2, y: H - 2, "text-anchor": "middle" }, "overlap (доля слов комментария, найденных в коде), корзины по 0.05"));
+
+  // θ можно перетянуть прямо по гистограмме - за линию или за саму букву θ. Во время движения
+  // дёшево двигаем их сами и сразу пересчитываем графики, которые зависят от θ (KPI, чувствительность,
+  // функция комментария) - гистограмма своих столбиков от θ не меняет, поэтому её саму не трогаем;
+  // полный renderAll() - только один раз, при отпускании, для остальных, независимых от θ блоков.
+  const thetaLine = sv("line", { x1: X(state.theta), x2: X(state.theta), y1: m.t, y2: H - m.b, stroke: "var(--ink)", "stroke-width": 1.5, "stroke-dasharray": "4 3" });
+  // pointer-events:none на букве - иначе она, будучи нарисована поверх handle, сама перехватывает
+  // клик и он не доходит до зоны захвата под ней.
+  const thetaLabel = sv("text", { x: X(state.theta), y: m.t - 6, "text-anchor": "middle", style: "fill:var(--ink);font-weight:700;font-size:12px;pointer-events:none" }, "θ");
+  const handle = sv("rect", {
+    x: X(state.theta) - 12, y: Math.max(0, m.t - 24), width: 24, height: H - m.b - Math.max(0, m.t - 24), fill: "transparent",
+    style: "cursor:ew-resize", tabindex: 0, role: "slider", "aria-label": "Порог θ (перетащите или используйте стрелки)",
+    "aria-valuemin": 0.2, "aria-valuemax": 0.9, "aria-valuenow": state.theta,
+  });
+  svg.append(thetaLine, handle, thetaLabel);
+  hover(handle, () => esc(GLOSS.theta) + " Перетащите, чтобы изменить.");
+  wireThetaHandle(handle, {
+    invX: (clientX) => { const r = svg.getBoundingClientRect(); return (((clientX - r.left) / r.width) * W - m.l) / iw; },
+    updateVisual: (t) => {
+      thetaLine.setAttribute("x1", X(t)); thetaLine.setAttribute("x2", X(t));
+      thetaLabel.setAttribute("x", X(t)); handle.setAttribute("x", X(t) - 12);
+      shade.setAttribute("x", X(t)); shade.setAttribute("width", Math.max(0, X(1) - X(t)));
+    },
+    onSettle: () => { renderKpis(); renderSens(); renderMix(); },
+  });
+  $("chart-hist").replaceChildren(svg);
+
+  const rows = Array.from({ length: 10 }, (_, k) => ({ lo: k / 10, ai: share("ai", 2 * k) + share("ai", 2 * k + 1), hu: share("human", 2 * k) + share("human", 2 * k + 1) }));
+  $("tbl-hist").replaceChildren(table(rows, [{ h: "overlap", f: (r) => `${r.lo.toFixed(1)}-${(r.lo + 0.1).toFixed(1)}` }, { h: "AI", num: 1, f: (r) => pct(r.ai) }, { h: "Человек", num: 1, f: (r) => pct(r.hu) }]));
+  $("note-hist").textContent = `Комментариев с посчитанным overlap: AI ${tot.ai.toLocaleString("ru")}, человек ${tot.human.toLocaleString("ru")}. Язык: ${state.lang === "all" ? "все" : state.lang}.`;
+
+  // Точки массы: самая заполненная корзина шириной 0.01 - это одно точное значение k/n.
+  const parts = SRC.map((s) => {
+    const a = block(s)[hk], top = a.map((v, i) => [i, v]).sort((x, y) => y[1] - x[1]).slice(0, 2).filter(([, v]) => tot[s] && v / tot[s] >= 0.08);
+    return top.length ? `${NAME[s]}: ` + top.map(([i, v]) => `${pct(v / tot[s], 0)} комментариев с overlap ≈ ${(i / B).toFixed(2)}`).join(", ") : null;
+  }).filter(Boolean);
+  $("note-mass").innerHTML = "<b>Почему столбики «рваные».</b> overlap - дробь k/n от небольшого числа слов (обычно 3-8), поэтому разных значений мало, а на некоторых (0, 1/3, 1/2, 2/3, 1) лежит много комментариев. " +
+    (parts.length ? "Здесь: " + parts.join(" · ") + ". " : "") + "Порог, попадающий на такое значение, даёт ступеньку на кривой справа.";
+}
+
+function renderSens() {
+  const grid = []; for (let i = 20; i <= 80; i++) grid.push(i / 100);   // шаг 0.01: ступеньки видны, а не сглажены наклонной линией
+  const ser = SRC.map((s) => ({ name: NAME[s], color: `var(--${s})`, points: grid.map((t) => [t, mixAt(s, t).refShare ?? 0]) }));
+  const ymax = Math.max(0.05, ...ser.flatMap((s) => s.points.map((p) => p[1]))) * 1.1;
+  lineChart($("chart-sens"), {
+    series: ser, xmin: 0.2, xmax: 0.8, ymax, xticks: [.2, .3, .4, .5, .6, .7, .8], yfmt: (v) => (v == null ? "-" : (100 * v).toFixed(0) + "%"),
+    xfmt: (v) => v.toFixed(2), marker: state.theta, xlabel: "порог θ", height: 230,
+    draggable: true, onDragSettle: () => { renderKpis(); renderHist(); renderMix(); },
+  });
+
+  // Самый крутой обрыв у каждой линии - с объяснением, чтобы читатель не принял его за ошибку счёта.
+  const cliffs = ser.map((s) => {
+    let best = { d: 0, i: 1 };
+    for (let i = 1; i < s.points.length; i++) { const d = s.points[i - 1][1] - s.points[i][1]; if (d > best.d) best = { d, i }; }
+    return { name: s.name, d: best.d, a: s.points[best.i - 1], b: s.points[best.i] };
+  }).filter((c) => c.d >= 0.1);
+  $("note-sens").textContent = cliffs.length
+    ? cliffs.map((c) => `${c.name}: обрыв между θ=${c.a[0].toFixed(2)} и ${c.b[0].toFixed(2)} - с ${pct(c.a[1], 0)} до ${pct(c.b[1], 0)}`).join("; ") +
+      ". Это не ошибка счёта: у стольких комментариев overlap точно равен левому значению (см. гистограмму), и «≥ θ» их включает, а на следующем шаге уже нет."
+    : "Резких обрывов нет: доля меняется плавно, значит вывод устойчив к выбору порога.";
+
+  const rowsT = new Set(grid.filter((t) => Math.round(t * 100) % 5 === 0));
+  cliffs.forEach((c) => { rowsT.add(c.a[0]); rowsT.add(c.b[0]); });
+  const at = (t) => grid.indexOf(t);
+  $("tbl-sens").replaceChildren(table([...rowsT].sort((x, y) => x - y).map((t) => ({ t, a: ser[0].points[at(t)][1], h: ser[1].points[at(t)][1] })),
+    [{ h: "θ", f: (r) => r.t.toFixed(2) }, { h: "AI", num: 1, f: (r) => pct(r.a) }, { h: "Человек", num: 1, f: (r) => pct(r.h) }]));
+}
+
+/* ---------- плотность комментариев ---------- */
+function renderDensity() {
+  const D = S.density, root = $("density-body");
+  if (!D || !D.available) { root.replaceChildren(h("p", { class: "muted" }, "Плотность не посчитана: " + (D ? D.reason : "в summary.json нет блока density (пересоберите анализ)."))); return; }
+  const exact = state.lang === "all", scope = exact ? D.per_source : (D.by_lang[state.lang] || D.per_source), A = scope.ai, Hm = scope.human;
+  const f1 = (v) => (v == null ? "-" : v.toFixed(1));
+  const b = D.bootstrap.all;
+  let ratioTxt;
+  if (A.per100 == null || !Hm.per100) ratioTxt = "Отношение не определено (у одной из групп нет строк или комментариев).";
+  else if (exact) ratioTxt = `AI комментирует в ×${b.ratio.toFixed(2)} плотнее` + (b.ratio_lo != null ? ` (95% ДИ по репозиториям: ×${b.ratio_lo.toFixed(2)}-×${b.ratio_hi.toFixed(2)})` : " (интервал не определён: нужно ≥ 2 репозиториев в каждой группе)") + ".";
+  else ratioTxt = `AI комментирует в ×${(A.per100 / Hm.per100).toFixed(2)} плотнее (для одного языка интервал не считается).`;
+  const kv = (s, m) => h("div", { class: "kv" }, h("div", { class: "who" }, h("span", { class: "dot " + s }), NAME[s]), h("div", { class: "big" }, f1(m.per100)),
+    h("div", { class: "sub2" }, `${m.comments.toLocaleString("ru")} комм. на ${m.added_lines.toLocaleString("ru")} строк`));
+  const top = h("div", { class: "row tile", style: "display:flex;gap:28px;flex-wrap:wrap;align-items:flex-start" }, kv("ai", A), kv("human", Hm),
+    h("div", { style: "flex:1;min-width:220px;align-self:center;color:var(--ink2)" }, ratioTxt));
+
+  const kinds = Object.keys(A.by_kind_per100), mx = Math.max(0.5, ...kinds.flatMap((k) => [A.by_kind_per100[k] || 0, Hm.by_kind_per100[k] || 0]));
+  const bars = h("div", { id: "density-bars" });
+  root.replaceChildren(top, h("h3", { style: "font-size:14px;margin:14px 0 4px" }, "Из каких комментариев складывается плотность (на 100 добавленных строк)"),
+    h("div", { class: "legend" }, h("span", {}, h("span", { class: "dot ai" }), "AI"), h("span", {}, h("span", { class: "dot human" }), "Человек")), bars);
+  pairBars(bars, kinds.map((k) => ({ label: k, max: mx, ai: A.by_kind_per100[k] || 0, human: Hm.by_kind_per100[k] || 0,
+    tip: (s) => `<b>${NAME[s]} · ${k}</b><br>${f1((s === "ai" ? A : Hm).by_kind_per100[k])} на 100 строк` })), (v) => v.toFixed(1));
+
+  const rows = [["Файлов", (m) => m.files.toLocaleString("ru")], ["Репозиториев", (m) => m.repos], ["Добавлено строк", (m) => m.added_lines.toLocaleString("ru")],
+    ["из них непустых", (m) => m.added_nonblank.toLocaleString("ru")], ["Комментариев", (m) => m.comments.toLocaleString("ru")],
+    ["Строк, занятых комментариями", (m) => m.comment_lines.toLocaleString("ru")], ["Комментариев на 100 строк", (m) => f1(m.per100)],
+    ["на 100 непустых строк", (m) => f1(m.per100_nonblank)], ["Доля строк-комментариев", (m) => pct(m.line_share)],
+    ["без doc / только doc (на 100 строк)", (m) => `${f1(m.main_per100)} / ${f1(m.doc_per100)}`],
+    ["Медиана плотности по репозиториям", (m) => f1(m.repo_median_per100)]];
+  const detail = h("details", {}, h("summary", {}, "Таблица данных"), h("div", { class: "tablewrap" }, table(rows, [{ h: "", f: (r) => r[0] }, { h: "AI", num: 1, f: (r) => r[1](A) }, { h: "Человек", num: 1, f: (r) => r[1](Hm) }])));
+  root.append(detail);
+
+  const tools = Object.entries(D.by_tool);
+  if (tools.length && exact) {
+    root.append(h("h3", { style: "font-size:14px;margin:14px 0 4px" }, "AI по инструментам"),
+      h("div", { class: "tablewrap" }, table(tools, [{ h: "Инструмент", f: (r) => r[0] }, { h: "На 100 строк", num: 1, f: (r) => f1(r[1].per100) },
+        { h: "Комментариев", num: 1, f: (r) => r[1].comments.toLocaleString("ru") }, { h: "Строк", num: 1, f: (r) => r[1].added_lines.toLocaleString("ru") },
+        { h: "Репозиториев", num: 1, f: (r) => r[1].repos }, { h: "К человеку", num: 1, f: (r) => (Hm.per100 ? "×" + (r[1].per100 / Hm.per100).toFixed(2) : "-") }])));
+  }
+  root.append(h("p", { class: "note" }, "Как читать. Плотность - это не доля пересказов: человек может комментировать реже, но так же «пересказывающе», и наоборот. Она зависит от типа кода (тесты, конфигурации, шаблоны), языка и размера коммитов, поэтому сравнивайте по языкам и с интервалом, а не по одному числу. Отношение считается как Σкомментариев / Σстрок, а не как среднее по файлам: иначе файл в одну строку весил бы как файл в тысячу."));
+}
+
+function renderMix() {
+  $("legend-mix").replaceChildren(...CLASS.map(([k, n, c]) => h("span", {}, h("span", { class: "dot", style: `background:${c}` }), gt(k, n))));
+  const root = $("chart-mix"); root.replaceChildren();
+  const rows = [];
+  for (const s of SRC) {
+    const m = mixAt(s, state.theta), tot = m.n || 1, vals = { referential: m.ref, explanatory: m.expl, other: m.other, undecided: m.undecided };
+    rows.push({ s, vals, tot });
+    const track = h("div", { class: "track stack" });
+    for (const [k, n, c] of CLASS) {
+      const v = vals[k]; if (!v) continue;
+      const seg = h("div", { class: "seg", style: `width:${(100 * v) / tot}%;background:${c}` });
+      seg.tabIndex = 0; hover(seg, () => `<b>${NAME[s]} · ${n}</b><br>${v.toLocaleString("ru")} комментариев (${pct(v / tot)})`);
+      track.append(seg);
+    }
+    root.append(h("div", { class: "hrow" }, h("div", {}, h("span", { class: "dot " + s }), NAME[s]), h("div", {}, track,
+      h("div", { class: "val cap" }, `referential ${pct(m.refShare)} · explanatory ${pct(m.explShare)} (от определённых)`))));
+  }
+  $("tbl-mix").replaceChildren(table(rows, [{ h: "Источник", f: (r) => NAME[r.s] }, ...CLASS.map(([k, n]) => ({ h: gt(k, n), num: 1, f: (r) => `${r.vals[k].toLocaleString("ru")} (${pct(r.vals[k] / r.tot)})` }))]));
+}
+
+/* ---------- облака слов ---------- */
+const measureCtx = document.createElement("canvas").getContext("2d");
+function layoutCloud(words, W, H) {
+  const placed = [], fit = [];
+  const fits = (b) => b.x >= 2 && b.y >= 2 && b.x + b.w <= W - 2 && b.y + b.h <= H - 2 && !placed.some((p) => b.x < p.x + p.w && b.x + b.w > p.x && b.y < p.y + p.h && b.y + b.h > p.y);
+  for (const w of words) {
+    measureCtx.font = `600 ${w.size}px system-ui, sans-serif`;
+    const bw = measureCtx.measureText(w.text).width + 6, bh = w.size * 1.05 + 2;
+    for (let t = 0; t < 900; t += 0.25) {
+      const r = 2.2 * t, cx = W / 2 + r * Math.cos(t) * 1.6, cy = H / 2 + r * Math.sin(t) * 0.75;
+      const box = { x: cx - bw / 2, y: cy - bh / 2, w: bw, h: bh };
+      if (fits(box)) { placed.push(box); fit.push({ ...w, cx, cy }); break; }
+    }
+  }
+  return fit;
+}
+function renderClouds() {
+  const rowsAll = {};
+  for (const s of SRC) {
+    const list = state.wmode === "dist" ? S.words.distinctive[s] : S.words.freq[s].map(([w, c]) => [w, c, c, null]);
+    const items = list.slice(0, 60); const vals = items.map((r) => r[1]); const lo = Math.min(...vals), hi = Math.max(...vals);
+    const scale = (v) => 12 + 32 * Math.sqrt(hi === lo ? 1 : (v - lo) / (hi - lo));
+    const words = items.map((r) => ({ text: r[0], size: scale(r[1]), row: r })).sort((a, b) => b.size - a.size);
+    const svg = $("cloud-" + s); svg.replaceChildren();
+    for (const w of layoutCloud(words, 520, 300)) {
+      const t = sv("text", { x: w.cx, y: w.cy, "text-anchor": "middle", "dominant-baseline": "central", style: `font-size:${w.size}px;fill:var(--${s})`, tabindex: 0 }, w.text);
+      hover(t, () => state.wmode === "dist"
+        ? `<b>${esc(w.text)}</b><br>характерность z = ${w.row[1].toFixed(1)}<br>${NAME[s]}: ${w.row[2]} · другой корпус: ${w.row[3]}`
+        : `<b>${esc(w.text)}</b><br>${w.row[1]} вхождений`);
+      svg.append(t);
+    }
+    rowsAll[s] = items;
+  }
+  const n = Math.max(rowsAll.ai.length, rowsAll.human.length);
+  const cols = state.wmode === "dist" ? ["z", "у себя", "у другого"] : ["раз"];
+  const cell = (r) => (r ? (state.wmode === "dist" ? `${r[0]} (z=${r[1].toFixed(1)})` : `${r[0]} (${r[1]})`) : "");
+  $("tbl-words").replaceChildren(table(Array.from({ length: Math.min(n, 30) }, (_, i) => ({ i, a: rowsAll.ai[i], h: rowsAll.human[i] })), [{ h: "#", f: (r) => r.i + 1 }, { h: "AI", f: (r) => cell(r.a) }, { h: "Человек", f: (r) => cell(r.h) }]));
+  $("note-words").textContent = state.wmode === "dist"
+    ? "Характерность - z-оценка log-odds с информативным априором (Monroe и др., 2008): показывает, чем корпуса различаются, а не какие слова просто частые. Слова реже 5 вхождений не показываются."
+    : "Сырые частоты без служебных слов: у обоих корпусов доминируют одни и те же слова про код, поэтому облака похожи. Для сравнения используйте «характерность».";
+}
+
+/* ---------- типы и маркеры ---------- */
+function pairBars(root, rows, fmtv) {
+  root.replaceChildren(...rows.map((r) => {
+    const mx = r.max;
+    const line = (s) => {
+      const w = mx ? (100 * r[s]) / mx : 0; const seg = h("div", { class: "seg", style: `width:${Math.max(w, r[s] > 0 ? 1 : 0)}%;background:var(--${s})` });
+      seg.tabIndex = 0; hover(seg, () => r.tip(s));
+      return h("div", { class: "pairline" }, h("div", { class: "track", style: "flex:1" }, seg), h("div", { class: "val" }, fmtv(r[s])));
+    };
+    return h("div", { class: "hrow wide" }, h("div", {}, r.label, r.badge ? h("span", { title: r.badgeTitle, style: "margin-left:6px" }, r.badge) : null), h("div", { class: "pair" }, line("ai"), line("human")));
+  }));
+}
+function renderKinds() {
+  const src = state.lang === "all" ? S.kinds.counts : Object.fromEntries(SRC.map((s) => [s, S.kinds.by_lang[state.lang][s]]));
+  const totals = Object.fromEntries(SRC.map((s) => [s, Object.values(src[s]).reduce((a, b) => a + b, 0)]));
+  const kinds = Object.keys(src.ai), mx = Math.max(0.01, ...kinds.flatMap((k) => SRC.map((s) => (totals[s] ? src[s][k] / totals[s] : 0))));
+  const rows = kinds.map((k) => ({ label: gt("kind_" + k, k), max: mx, ai: totals.ai ? src.ai[k] / totals.ai : 0, human: totals.human ? src.human[k] / totals.human : 0,
+    tip: (s) => `<b>${NAME[s]} · ${k}</b><br>${src[s][k].toLocaleString("ru")} из ${totals[s].toLocaleString("ru")}` }));
+  pairBars($("chart-kinds"), rows, (v) => pct(v));
+  $("tbl-kinds").replaceChildren(table(kinds.map((k) => ({ k })), [{ h: "Тип", f: (r) => gt("kind_" + r.k, r.k) }, { h: "AI", num: 1, f: (r) => `${src.ai[r.k]} (${pct(src.ai[r.k] / (totals.ai || 1))})` }, { h: "Человек", num: 1, f: (r) => `${src.human[r.k]} (${pct(src.human[r.k] / (totals.human || 1))})` }]));
+  const c = S.kinds.chi2;
+  $("note-kinds").textContent = state.lang === "all" && c.p != null ? `χ² = ${c.chi2.toFixed(1)}, df = ${c.df}, p ${c.p < 0.001 ? "< 0.001" : "= " + c.p.toFixed(3)}, Cramér's V = ${c.cramers_v.toFixed(2)} (все языки).` : "Критерий считается по всем языкам.";
+}
+function groupChip(groupKey) {
+  const g = S.groups[groupKey] || {};
+  const sp = document.createElement("span");
+  sp.className = "grouptag"; sp.tabIndex = 0; sp.textContent = g.label_ru || groupKey || "-";
+  hover(sp, () => `${esc(g.gloss || "")}` + (g.source ? `<br><span style="opacity:.7">${esc(g.source)}</span>` : ""));
+  return sp;
+}
+function renderMarkers() {
+  const grp = $("marker-group").value;
+  const list = S.markers.filter((m) => !grp || m.group === grp);
+  const rows = list.map((m) => ({ label: m.label_ru, ai: (m.ai_per1k || 0) / 10, human: (m.human_per1k || 0) / 10, m }));
+  const mx = Math.max(0.5, ...rows.flatMap((r) => [r.ai, r.human]));
+  rows.forEach((r) => { r.max = mx; r.badge = r.m.q != null && r.m.q < 0.05 ? "●" : ""; r.badgeTitle = `q = ${r.m.q?.toFixed(4)}`;
+    const g = S.groups[r.m.group] || {};
+    r.tip = (s) => `<b>${NAME[s]} · ${esc(r.label)}</b> <span style="opacity:.7">(${esc(r.m.label)})</span><br>${r[s].toFixed(1)} на 100 комментариев<br><span style="opacity:.8">${esc(r.m.note || "")}</span>` +
+      (g.label_ru ? `<br><span style="opacity:.65">${esc(g.label_ru)}</span>` : ""); });
+  pairBars($("chart-markers"), rows, (v) => v.toFixed(1));
+  $("tbl-markers").replaceChildren(table(list, [
+    { h: "Маркер", f: (r) => r.label_ru + (r.explanatory ? " (почему)" : "") },
+    { h: "Группа", f: (r) => groupChip(r.group) },
+    { h: "AI, ‰", num: 1, f: (r) => fmt(r.ai_per1k, 1) },
+    { h: "Человек, ‰", num: 1, f: (r) => fmt(r.human_per1k, 1) },
+    { h: gt("or", "OR"), num: 1, f: (r) => fmt(r.odds_ratio) },
+    { h: gt("q", "q"), num: 1, f: (r) => (r.q == null ? "-" : r.q < 0.001 ? "< 0.001" : r.q.toFixed(3)) }]));
+}
+
+/* ---------- идиомы ---------- */
+const CONN = { negative: ["−", "негативная"], neutral: ["·", "нейтральная"], positive: ["+", "позитивная"] };
+let idiomSort = { key: "total", dir: -1 };
+function renderIdioms() {
+  const cat = $("idiom-cat").value, con = $("idiom-con").value;
+  let rows = S.idioms.filter((r) => (!cat || r.category === cat) && (!con || r.connotation === con)).map((r) => ({ ...r, total: r.ai_n + r.human_n }));
+  const k = idiomSort.key; rows.sort((a, b) => ((a[k] ?? -1e9) > (b[k] ?? -1e9) ? 1 : -1) * idiomSort.dir || 0);
+  const cols = [["label", "Идиома", 0], ["category", "Категория", 0], ["connotation", "Коннотация", 0], ["ai_per1k", "AI ‰", 1], ["human_per1k", "Человек ‰", 1], ["odds_ratio", "OR", 1], ["q", "q", 1], ["total", "Всего", 1]];
+  const HINT = { odds_ratio: GLOSS.or, q: GLOSS.q };
+  const head = h("tr", {}, cols.map(([key, t, num]) => h("th", { class: "sort" + (num ? " num" : ""), onclick: () => { idiomSort = { key, dir: idiomSort.key === key ? -idiomSort.dir : -1 }; renderIdioms(); }, title: (HINT[key] ? HINT[key] + " " : "") + "Сортировать" }, t + (idiomSort.key === key ? (idiomSort.dir < 0 ? " ▼" : " ▲") : ""))));
+  const body = rows.slice(0, 200).map((r) => {
+    const g = S.groups[r.group] || {};
+    const catCell = h("span", { class: "gloss", tabindex: 0 }, r.category_ru || r.category);
+    hover(catCell, () => esc(g.gloss || "") + (g.source ? `<br><span style="opacity:.7">${esc(g.source)}</span>` : ""));
+    return h("tr", {}, h("td", { title: r.note || "" }, r.label), h("td", {}, catCell),
+      h("td", {}, h("span", { class: "chip", title: CONN[r.connotation][1] }, CONN[r.connotation][0] + " " + CONN[r.connotation][1])),
+      h("td", { class: "num" }, fmt(r.ai_per1k, 1)), h("td", { class: "num" }, fmt(r.human_per1k, 1)), h("td", { class: "num" }, fmt(r.odds_ratio)),
+      h("td", { class: "num" }, r.q == null ? "" : r.q < 0.001 ? "< 0.001" : r.q.toFixed(3)), h("td", { class: "num" }, r.total));
+  });
+  $("idiom-table").replaceChildren(h("thead", {}, head), h("tbody", {}, body.length ? body : h("tr", {}, h("td", { colspan: 8, class: "muted" }, "Идиом с такими параметрами в корпусе не найдено."))));
+  const c = S.connotation;
+  $("idiom-conn-sum").textContent = `Комментариев с негативной коннотацией на 1000: AI ${fmt(c.ai.negative, 1)}, человек ${fmt(c.human.negative, 1)}.`;
+}
+
+/* ---------- примеры ---------- */
+function renderExamples() {
+  const src = $("ex-src").value, band = $("ex-band").value;
+  let list = (EX[src] || []).filter((e) => e.band === band && (state.lang === "all" || e.lang === state.lang));
+  const off = (state.exN * 6) % Math.max(list.length, 1); list = list.slice(off, off + 6);
+  const root = $("examples");
+  if (!list.length) { root.replaceChildren(h("p", { class: "muted" }, "Примеров с такими параметрами нет.")); return; }
+  root.replaceChildren(...list.map((e) => h("div", { class: "ex" },
+    h("div", { class: "cm" }, e.hl.map(([w, st], i) => [h("span", { class: st ? "w" + st : "" }, w), i < e.hl.length - 1 ? " " : ""])),
+    h("pre", {}, e.code),
+    h("div", { class: "meta" }, h("span", {}, `overlap ${e.overlap.toFixed(2)}`), h("span", {}, `ext ${e.overlap_ext.toFixed(2)}`), h("span", {}, e.kind), h("span", {}, e.lang), h("span", {}, e.cls || "не определено"), h("span", {}, e.repo)))));
+}
+
+/* ---------- таблицы «стиль» и «doc» ---------- */
+function renderMisc() {
+  const st = S.style, vf = S.verb_form;
+  const rows = [["Средняя длина, слов", (s) => fmt(st[s].mean_words, 1)], ["Заканчивается точкой", (s) => pct(st[s].ends_with_period)], ["Начинается с заглавной", (s) => pct(st[s].starts_upper)],
+    ["Вопрос", (s) => pct(st[s].question)], [gt("url", "Есть URL"), (s) => pct(st[s].has_url)], [gt("issue", "Есть ссылка на issue/тикет"), (s) => pct(st[s].has_issue_ref)],
+    ["Начинается с глагола (императив)", (s) => pct(vf[s].imperative)], ["Начинается с глагола (3-е лицо)", (s) => pct(vf[s].third_person)]];
+  $("style-table").replaceChildren(table(rows, [{ h: "Признак", f: (r) => r[0] }, { h: "AI", num: 1, f: (r) => r[1]("ai") }, { h: "Человек", num: 1, f: (r) => r[1]("human") }]));
+  const d = S.docs;
+  const drows = [["Докстрингов", (s) => d[s].n], ["Средний overlap", (s) => fmt(d[s].overlap.mean)], ["Доля referential", (s) => pct(d[s].referential_share)], ["Начинаются с глагола 3-го лица", (s) => pct(d[s].verb_third_person)]];
+  $("docs-table").replaceChildren(table(drows, [{ h: "", f: (r) => r[0] }, { h: "AI", num: 1, f: (r) => r[1]("ai") }, { h: "Человек", num: 1, f: (r) => r[1]("human") }]));
+}
+
+function renderGroupDefs() {
+  const order = ["discourse", "evidential", "stance", "directive", "code_convention", "attitude", "register", "jargon"];
+  const keys = [...order.filter((k) => S.groups[k]), ...Object.keys(S.groups).filter((k) => !order.includes(k))];
+  $("group-defs").replaceChildren(
+    h("p", {}, "Категории маркеров (lexicon/marker_categories.csv) и идиом (lexicon/idiom_categories.csv) сгруппированы по научным классификациям, а не свалены в одну кучу «прагматических маркеров». Группа и источник показаны в таблицах маркеров и идиом при наведении."),
+    ...keys.map((k) => h("p", {}, h("b", {}, S.groups[k].label_ru), " - ", S.groups[k].gloss,
+      S.groups[k].source ? h("span", { class: "muted" }, " (", S.groups[k].source, ")") : null)));
+}
+
+/* ---------- каркас ---------- */
+function renderStatic() {
+  $("subtitle").textContent = `Корпус собран по git-трейлерам (AI) и по дате до ${S.human_cutoff || "2020-11"} (человек). Построено ${S.generated_at.slice(0, 10)}${S.balanced ? ", языки выровнены" : ""}, NLP-бэкенд: ${S.nlp_backend}.`;
+  const b = $("banners");
+  if (S.demo) b.append(h("div", { class: "banner demo" }, "ДЕМО-ДАННЫЕ. Код и комментарии синтетические, написаны вручную под гипотезу. Дашборд показывает, что конвейер работает; результаты нельзя цитировать."));
+  if (S.warnings.length) b.append(h("div", { class: "banner warn" }, h("b", {}, "Внимание: "), S.warnings.join(" · ")));
+  const langs = $("lang"); langs.append(h("option", { value: "all" }, "все"), ...S.langs.map((l) => h("option", { value: l }, l)));
+  const catRu = Object.fromEntries(S.idioms.map((r) => [r.category, r.category_ru]));
+  const cats = [...new Set(S.idioms.map((r) => r.category))].sort();
+  $("idiom-cat").append(h("option", { value: "" }, "все"), ...cats.map((c) => h("option", { value: c }, catRu[c] || c)));
+  const groupRu = Object.fromEntries(S.markers.map((r) => [r.group, (S.groups[r.group] || {}).label_ru || r.group]));
+  const mgroups = [...new Set(S.markers.map((r) => r.group))];
+  $("marker-group").append(h("option", { value: "" }, "все"), ...mgroups.map((g) => h("option", { value: g }, groupRu[g] || g)));
+  const c = S.composition;
+  const lines = SRC.map((s) => { const x = c[s]; return `${NAME[s]}: наблюдений ${x.observed}, исключено (лицензии ${x.excluded_license || 0}, директивы ${x.excluded_directive || 0}, код ${x.excluded_code || 0}, пустые ${x.excluded_empty || 0}), не английский ${x.non_english || 0}, дубли ${x.duplicate || 0}, сверх лимита на репозиторий ${x.capped_per_repo || 0}, в анализе ${x.analyzed}.`; });
+  $("limits").append(h("p", {}, ...lines.map((l) => [l, h("br")])),
+    h("p", {}, "Список AI-трейлеров неполон; squash-слияния могут терять трейлер (занижение AI-корпуса); эвристики языка и «закомментированного кода» приблизительны; VADER обучен на соцсетях и для комментариев почти всегда нейтрален. Подробнее: docs/08-limitations.md."));
+  $("footer").textContent = "Автономная страница: все данные встроены, внешних запросов нет.";
+  document.title = (S.demo ? "[ДЕМО] " : "") + "Комментарии AI и человека";
+}
+function renderAll() { $("thetaV").textContent = state.theta.toFixed(2); renderKpis(); renderHist(); renderSens(); renderMix(); renderKinds(); renderDensity(); renderExamples(); }
+
+$("lang").addEventListener("change", (e) => { state.lang = e.target.value; renderAll(); });
+$("theta").addEventListener("input", (e) => { state.theta = +e.target.value; renderAll(); });
+for (const [id, val] of [["m-strict", "strict"], ["m-ext", "ext"]]) $(id).addEventListener("click", () => { state.metric = val; $("m-strict").setAttribute("aria-pressed", val === "strict"); $("m-ext").setAttribute("aria-pressed", val === "ext"); renderAll(); });
+for (const [id, val] of [["w-dist", "dist"], ["w-freq", "freq"]]) $(id).addEventListener("click", () => { state.wmode = val; $("w-dist").setAttribute("aria-pressed", val === "dist"); $("w-freq").setAttribute("aria-pressed", val === "freq"); renderClouds(); });
+$("idiom-cat").addEventListener("change", renderIdioms); $("idiom-con").addEventListener("change", renderIdioms);
+$("marker-group").addEventListener("change", renderMarkers);
+$("ex-src").addEventListener("change", () => { state.exN = 0; renderExamples(); }); $("ex-band").addEventListener("change", () => { state.exN = 0; renderExamples(); });
+$("ex-more").addEventListener("click", () => { state.exN++; renderExamples(); });
+$("themeBtn").addEventListener("click", () => {
+  const dark = document.documentElement.getAttribute("data-theme") === "dark" || (!document.documentElement.hasAttribute("data-theme") && matchMedia("(prefers-color-scheme: dark)").matches);
+  document.documentElement.setAttribute("data-theme", dark ? "light" : "dark"); $("themeBtn").setAttribute("aria-pressed", !dark); $("themeBtn").textContent = dark ? "Тёмная тема" : "Светлая тема";
+});
+$("theta").value = state.theta;
+hover($("gloss-demo"), () => esc(GLOSS.gloss));
+hover($("doc-title-gloss"), () => esc(GLOSS.kind_doc));
+renderStatic(); renderAll(); renderClouds(); renderMarkers(); renderIdioms(); renderMisc(); renderGroupDefs();
+</script>
+</body>
+</html>
