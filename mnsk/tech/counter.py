@@ -43,6 +43,9 @@ BINS = 100
 THETA_GRID = [round(0.2 + 0.05 * i, 2) for i in range(13)]  # 0.20 ... 0.80
 SOURCES = ("ai", "human")
 KINDS = ("inline", "leading", "block", "detached", "doc")
+# Порядок групп маркеров в дашборде и CSV: дискурсивные связки сначала, дальше -
+# авторская позиция, обращение к читателю, условности кода. См. lexicon/groups.csv.
+MARKER_GROUP_ORDER = ("discourse", "evidential", "stance", "directive", "code_convention")
 
 
 def r5(x):
@@ -348,6 +351,10 @@ def summarize(pool: list[dict], args, lex) -> dict:
     for row in mrows:
         row["explanatory"] = info[row["label"]].explanatory
         row["note"] = info[row["label"]].note
+        row["group"] = info[row["label"]].group
+        row["label_ru"] = info[row["label"]].label_ru
+    order = {g: i for i, g in enumerate(MARKER_GROUP_ORDER)}
+    mrows.sort(key=lambda r: order.get(r["group"], len(order)))
 
     lemmas = [i.lemma for i in lex.idioms]
     icounts = presence_rows(M, lambda r: r["f"]["idioms"], lemmas)
@@ -357,6 +364,8 @@ def summarize(pool: list[dict], args, lex) -> dict:
         row["category"] = imeta[row["label"]].category
         row["connotation"] = imeta[row["label"]].connotation
         row["note"] = imeta[row["label"]].note
+        row["group"] = imeta[row["label"]].group
+        row["category_ru"] = imeta[row["label"]].category_ru
     irows = [r for r in irows if r["ai_n"] + r["human_n"] > 0]
     irows.sort(key=lambda r: -(r["ai_n"] + r["human_n"]))
 
@@ -404,7 +413,7 @@ def summarize(pool: list[dict], args, lex) -> dict:
         "sizes": sizes, "langs": langs, "overlap": overlap, "referential": referential, "tools": tools,
         "kinds": {"counts": kinds, "chi2": {k: (r5(v) if isinstance(v, float) else v) for k, v in kinds_chi.items()},
                   "by_lang": kinds_lang},
-        "markers": mrows, "idioms": irows,
+        "markers": mrows, "idioms": irows, "groups": lex.groups,
         "connotation": {s: {k: r5(1000 * conn[s][k] / tot[s]) if tot[s] else None for k in ("negative", "neutral", "positive")} for s in SOURCES},
         "idiom_categories": {s: {k: r5(1000 * v / tot[s]) if tot[s] else None for k, v in cat_c[s].items()} for s in SOURCES},
         "sentiment": sent, "style": style, "verb_form": verb, "docs": docs_block, "words": words,
@@ -580,8 +589,8 @@ def main(argv: list[str] | None = None) -> None:
                                 "overlap": r5(r["f"]["overlap"]), "cue": r["f"]["explanatory_cue"], "cls": r["cls"]},
                                ensure_ascii=False) + "\n")
 
-    write_csv(out / "idioms.csv", summ["idioms"], ["label", "category", "connotation", "ai_n", "human_n", "ai_per1k", "human_per1k", "odds_ratio", "p", "q", "note"])
-    write_csv(out / "markers.csv", summ["markers"], ["label", "explanatory", "ai_n", "human_n", "ai_per1k", "human_per1k", "odds_ratio", "p", "q", "note"])
+    write_csv(out / "idioms.csv", summ["idioms"], ["label", "category", "category_ru", "group", "connotation", "ai_n", "human_n", "ai_per1k", "human_per1k", "odds_ratio", "p", "q", "note"])
+    write_csv(out / "markers.csv", summ["markers"], ["label", "label_ru", "group", "explanatory", "ai_n", "human_n", "ai_per1k", "human_per1k", "odds_ratio", "p", "q", "note"])
     write_csv(out / "overlap_sensitivity.csv", summ["referential"]["sensitivity"], ["theta", "ai", "human", "ai_ext", "human_ext"])
     for s in SOURCES:
         write_csv(out / f"words_{s}.csv", [{"word": w, "count": c} for w, c in summ["words"]["freq"][s]], ["word", "count"])

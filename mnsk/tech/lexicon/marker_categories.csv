@@ -1,0 +1,13 @@
+category,group,label_ru
+cause,discourse,причина
+purpose,discourse,цель
+contrast,discourse,противопоставление
+condition,discourse,условие
+reference,evidential,ссылка на источник
+history,code_convention,временность решения
+tag,code_convention,тег техдолга (TODO/FIXME)
+warning,directive,предупреждение читателю
+negation,directive,отрицание
+hedge,stance,оговорка уверенности
+modal,stance,долженствование
+first_person,stance,личное присутствие автора

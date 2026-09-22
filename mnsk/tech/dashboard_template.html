@@ -109,6 +109,8 @@ details { margin-top: 10px; } summary { cursor: pointer; color: var(--ink2); fon
 .note { font-size: 12.5px; color: var(--muted); margin: 8px 0 0; }
 .hidden { display: none !important; }
 .def { font-size: 13.5px; color: var(--ink2); } .def code { background: var(--page); padding: 1px 5px; border-radius: 4px; border: 1px solid var(--grid); }
+.gloss { border-bottom: 1px dotted var(--muted); cursor: help; }
+.grouptag { font-size: 11.5px; color: var(--muted); border: 1px solid var(--border); border-radius: 999px; padding: 0 7px; white-space: nowrap; }
 .filters { display: flex; gap: 12px; flex-wrap: wrap; margin: 8px 0 10px; font-size: 13px; align-items: center; }
 footer { margin-top: 30px; font-size: 12.5px; color: var(--muted); }
 </style>
@@ -117,6 +119,7 @@ footer { margin-top: 30px; font-size: 12.5px; color: var(--muted); }
 <div class="wrap">
   <h1>Комментарии AI и человека: лексический анализ</h1>
   <p class="sub" id="subtitle"></p>
+  <p class="note">Термины с <span class="gloss" tabindex="0" id="gloss-demo">пунктирным подчёркиванием</span> - наведите курсор или нажмите Tab, чтобы увидеть объяснение простыми словами.</p>
   <div id="banners"></div>
 
   <div class="bar" role="group" aria-label="Параметры отображения">
@@ -124,7 +127,7 @@ footer { margin-top: 30px; font-size: 12.5px; color: var(--muted); }
     <label>Метрика
       <span><button id="m-strict" aria-pressed="true" title="Только совпадения слов (стемы)">overlap</button>
       <button id="m-ext" aria-pressed="false" title="С учётом парафраз синтаксиса: for → loop, if → check…">overlap ext</button></span></label>
-    <label>Порог θ <input type="range" id="theta" min="0.2" max="0.9" step="0.01"><span class="theta" id="thetaV"></span></label>
+    <label>Порог <span class="gloss" title="Порог θ: при каком overlap комментарий считают «пересказом» (referential).">θ</span> <input type="range" id="theta" min="0.2" max="0.9" step="0.01"><span class="theta" id="thetaV"></span></label>
     <button id="themeBtn" aria-pressed="false" title="Переключить тему">Тёмная тема</button>
   </div>
 
@@ -195,8 +198,11 @@ footer { margin-top: 30px; font-size: 12.5px; color: var(--muted); }
       <p class="note" id="note-kinds"></p>
     </div>
     <div class="card">
-      <h2>Прагматические маркеры</h2>
-      <p class="sub">Сколько комментариев из 100 содержат маркер. Тёмная точка - различие значимо после поправки на множественные сравнения (q &lt; 0.05).</p>
+      <h2>Маркеры функции комментария</h2>
+      <p class="sub">Сколько комментариев из 100 содержат маркер. Тёмная точка - различие значимо после поправки на множественные сравнения (q &lt; 0.05). Маркеры относятся к разным лингвистическим категориям - группа и источник классификации показаны в таблице и подсказке.</p>
+      <div class="filters">
+        <label>Группа <select id="marker-group"></select></label>
+      </div>
       <div class="legend"><span><span class="dot ai"></span>AI</span><span><span class="dot human"></span>Человек</span></div>
       <div id="chart-markers"></div>
       <details><summary>Таблица данных</summary><div class="tablewrap" id="tbl-markers"></div></details>
@@ -236,7 +242,7 @@ footer { margin-top: 30px; font-size: 12.5px; color: var(--muted); }
       <div class="tablewrap" id="style-table"></div>
     </div>
     <div class="card">
-      <h2>Докстринги (отдельно)</h2>
+      <h2><span class="gloss" id="doc-title-gloss" tabindex="0">Докстринги</span> (отдельно)</h2>
       <p class="sub">Описывают функцию целиком, поэтому в основную метрику не входят.</p>
       <div class="tablewrap" id="docs-table"></div>
     </div>
@@ -251,6 +257,7 @@ footer { margin-top: 30px; font-size: 12.5px; color: var(--muted); }
         <p><b>Что учитывается.</b> Только комментарии, целиком добавленные атрибутируемым коммитом; без лицензий, директив линтеров, закомментированного кода и не-английских текстов; без точных дублей внутри репозитория.</p>
         <p><b>Доверительный интервал</b> для разницы долей считается бутстрепом по репозиториям, а не по комментариям: комментарии одного проекта не независимы.</p>
       </details>
+      <details><summary>Классификация маркеров и идиом</summary><div id="group-defs" class="def"></div></details>
       <details><summary>Ограничения</summary><div id="limits"></div></details>
     </div>
   </section>
@@ -273,6 +280,36 @@ const pct = (x, d = 1) => (x == null ? "-" : (100 * x).toFixed(d) + "%");
 const KIND_RU = { inline: "inline", leading: "leading", block: "block", detached: "detached", doc: "doc" };
 const CLASS = [["referential", "Referential", "var(--c-ref)"], ["explanatory", "Explanatory", "var(--c-expl)"],
                ["other", "Other", "var(--c-other)"], ["undecided", "Не определено", "var(--c-none)"]];
+
+/* ---------- глоссарий: непонятные слова и термины объясняются при наведении ---------- */
+const GLOSS = {
+  overlap: "Доля содержательных слов комментария, которые уже есть в соседнем коде.",
+  theta: "Порог θ: при каком overlap комментарий считают «пересказом» (referential).",
+  or: "Odds ratio, отношение шансов: во сколько раз шансы встретить это слово выше в одной группе, чем в другой. OR = 1 - разницы нет.",
+  q: "p-value после поправки на то, что проверяется много слов сразу (Бенджамини-Хохберг). Показывает, какая доля находок может быть случайной.",
+  p: "Вероятность получить такое или более крайнее различие, если на самом деле никакой разницы нет.",
+  delta: "Cliff's δ - размер эффекта: доля пар наблюдений, где значение AI больше, минус доля пар, где оно меньше. 0 - разницы нет, 1 - группы не пересекаются.",
+  mw: "Критерий Манна-Уитни: сравнивает не средние, а порядок значений - годится, когда среди данных много одинаковых чисел.",
+  cramer: "Cramér's V - насколько сильно источник (AI/человек) связан с типом комментария: 0 - нет связи, 1 - полная связь.",
+  referential: "Комментарий пересказывает код: доля его содержательных слов, совпавших с кодом, не меньше порога θ.",
+  explanatory: "В комментарии есть маркер «почему»: причина, цель, предупреждение, ссылка на источник и т.п.",
+  other: "Комментарий распознан, но не подошёл ни под referential, ни под explanatory.",
+  ci: "Доверительный интервал: диапазон, где с 95% вероятностью лежит настоящая разница между AI и человеком.",
+  url: "Комментарий содержит адрес веб-страницы (http/https).",
+  issue: "Комментарий ссылается на карточку в трекере задач - номер вида #412 или слово issue/ticket.",
+  gloss: "Так помечены места, где можно навести курсор и увидеть объяснение - без этого текста было бы ещё непонятнее.",
+  kind_inline: "Комментарий в конце строки кода - на той же строке, что и код (inline = «в строке»).",
+  kind_leading: "Комментарий над кодом, к которому относится: сам код начинается на следующей строке (leading = «идущий перед»).",
+  kind_block: "Комментарий в блочной форме /* … */ - может занимать несколько строк (block = «блок»).",
+  kind_detached: "Комментарий не привязан ни к какому коду: после него пустая строка, или в файле больше ничего нет (detached = «оторванный»).",
+  kind_doc: "Докстринг - служебный комментарий-документация сразу после объявления функции или класса. Его читают не только люди, но и инструменты автогенерации документации: JSDoc в JavaScript/TypeScript, Javadoc в Java, обычная строка в тройных кавычках в Python.",
+};
+function gt(key, text) {
+  const s = document.createElement("span");
+  s.className = "gloss"; s.tabIndex = 0; s.textContent = text;
+  hover(s, () => esc(GLOSS[key] || text));
+  return s;
+}
 
 function h(tag, attrs, ...kids) {
   const el = document.createElement(tag);
@@ -307,6 +344,43 @@ function hover(el, htmlFn) {
   el.addEventListener("mouseleave", tipHide);
   el.addEventListener("focus", () => { const r = el.getBoundingClientRect(); tipShow({ clientX: r.left, clientY: r.top }, htmlFn({})); });
   el.addEventListener("blur", tipHide);
+}
+
+/* ---------- перетаскивание порога θ: общая логика для гистограммы и графика чувствительности ---------- */
+// handle - невидимая зона захвата этого конкретного графика; invX(clientX) переводит координату
+// курсора в «сырое» значение θ по масштабу ИМЕННО этого графика; updateVisual(t) дёшево двигает
+// линию/подпись/заливку внутри него самого (сам график не перерисовывается во время перетаскивания -
+// это и есть то, из-за чего раньше терялся захват курсора); onSettle() раз в кадр (requestAnimationFrame)
+// обновляет ДРУГИЕ графики, зависящие от θ, кроме этого - самого текущего перерисовывать нельзя,
+// пока его же элемент держит захват указателя.
+function wireThetaHandle(handle, { invX, updateVisual, onSettle, min = 0.2, max = 0.9 }) {
+  const clampTheta = (v) => Math.min(max, Math.max(min, Math.round(v * 100) / 100));
+  let raf = null;
+  const commit = (t) => {
+    if (t === state.theta) return;
+    state.theta = t; updateVisual(t); handle.setAttribute("aria-valuenow", t);
+    $("thetaV").textContent = t.toFixed(2); $("theta").value = t;
+    if (raf) return;
+    raf = requestAnimationFrame(() => { raf = null; onSettle(); });
+  };
+  handle.addEventListener("pointerdown", (e) => {
+    handle.setPointerCapture(e.pointerId);
+    const onMove = (ev) => commit(clampTheta(invX(ev.clientX)));
+    const onUp = () => {
+      handle.removeEventListener("pointermove", onMove); handle.removeEventListener("pointerup", onUp); handle.removeEventListener("pointercancel", onUp);
+      if (raf) { cancelAnimationFrame(raf); raf = null; }
+      renderAll();
+    };
+    handle.addEventListener("pointermove", onMove); handle.addEventListener("pointerup", onUp); handle.addEventListener("pointercancel", onUp);
+    e.preventDefault();
+  });
+  handle.addEventListener("keydown", (e) => {
+    const step = e.key === "PageUp" ? 0.05 : e.key === "PageDown" ? -0.05 : e.key === "ArrowRight" || e.key === "ArrowUp" ? 0.01 : e.key === "ArrowLeft" || e.key === "ArrowDown" ? -0.01 : null;
+    if (step == null) return;
+    e.preventDefault(); state.theta = clampTheta(state.theta + step); updateVisual(state.theta);
+    handle.setAttribute("aria-valuenow", state.theta); $("thetaV").textContent = state.theta.toFixed(2); $("theta").value = state.theta;
+    renderAll();
+  });
 }
 
 /* ---------- данные по срезу ---------- */
@@ -355,21 +429,21 @@ function renderKpis() {
     h("div", { class: "card tile" }, h("div", { class: "lbl" }, `Доли referential и explanatory (θ=${t.toFixed(2)})`),
       h("div", { class: "row" }, [["ai", mA], ["human", mH]].map(([s, m]) => h("div", { class: "kv" },
         h("div", { class: "who" }, h("span", { class: "dot " + s }), NAME[s]),
-        h("div", { class: "sub2" }, "Referential"), h("div", { class: "big" }, pct(m.refShare)),
-        h("div", { class: "sub2" }, "Explanatory"), h("div", { class: "big md" }, pct(m.explShare)),
-        h("div", { class: "sub2" }, `прочее (other): ${pct(m.classified ? m.other / m.classified : null)}`)))),
+        h("div", { class: "sub2" }, gt("referential", "Referential")), h("div", { class: "big" }, pct(m.refShare)),
+        h("div", { class: "sub2" }, gt("explanatory", "Explanatory")), h("div", { class: "big md" }, pct(m.explShare)),
+        h("div", { class: "sub2" }, gt("other", "прочее (other)"), `: ${pct(m.classified ? m.other / m.classified : null)}`)))),
       h("div", { class: "small" }, `Доли от комментариев, для которых функция определена. Референциальных: AI − человек = ${dTxt(diff)} · ${ciNote}`),
       h("div", { class: "small" }, `Объясняющих: AI − человек = ${dTxt(diffE)}${ciE ? " · " + ciE : ""}`)),
     // Среднее, а не медиана: у дискретной метрики (дробь k/n) медиана всегда совпадает с одной из
     // «точек массы» (0.5, 0.75…) и почти ничего не говорит.
     tile("Средний overlap", SRC.map((s) => [s, fmt(mean(s))]), `Медиана: AI ${fmt(med("ai"))}, человек ${fmt(med("human"))} - у дискретной метрики она совпадает с «точками массы» (0.5, 0.75…), поэтому главным взято среднее. ${useExact ? "Все языки, точные значения." : "По гистограмме, ±0.005."}`),
-    h("div", { class: "card tile" }, h("div", { class: "lbl" }, "Размер эффекта (Cliff's δ)"),
+    h("div", { class: "card tile" }, h("div", { class: "lbl" }, "Размер эффекта (", gt("delta", "Cliff's δ"), ")"),
       h("div", { class: "big" }, mw.cliffs_delta == null ? "-" : (mw.cliffs_delta >= 0 ? "+" : "") + mw.cliffs_delta.toFixed(2)),
-      h("div", { class: "small" }, `${mw.effect || ""} · p ${mw.p == null ? "-" : mw.p < 0.001 ? "< 0.001" : "= " + mw.p.toFixed(3)} (Манн-Уитни, все языки). δ > 0: overlap у AI выше.`)));
+      h("div", { class: "small" }, `${mw.effect || ""} · `, gt("p", "p"), ` ${mw.p == null ? "-" : mw.p < 0.001 ? "< 0.001" : "= " + mw.p.toFixed(3)} (`, gt("mw", "Манн-Уитни"), `, все языки). δ > 0: overlap у AI выше.`)));
 }
 
 /* ---------- линейные графики ---------- */
-function lineChart(root, { series, xmin, xmax, ymax, xticks, yfmt, xfmt, marker, shadeFrom, height = 250, xlabel }) {
+function lineChart(root, { series, xmin, xmax, ymax, xticks, yfmt, xfmt, marker, shadeFrom, height = 250, xlabel, draggable, onDragSettle }) {
   const W = 640, H = height, m = { l: 44, r: 62, t: 10, b: 30 };
   const X = (x) => m.l + ((x - xmin) / (xmax - xmin)) * (W - m.l - m.r), Y = (y) => H - m.b - (y / ymax) * (H - m.t - m.b);
   const svg = sv("svg", { viewBox: `0 0 ${W} ${H}`, class: "cloud", role: "img", "aria-label": xlabel || "график" });
@@ -395,14 +469,36 @@ function lineChart(root, { series, xmin, xmax, ymax, xticks, yfmt, xfmt, marker,
   labels.sort((a, b) => a.y - b.y);
   for (let i = 1; i < labels.length; i++) if (labels[i].y - labels[i - 1].y < 15) labels[i].y = labels[i - 1].y + 15;
   for (const l of labels) svg.append(sv("text", { class: "lbl-ai", x: l.x, y: l.y }, l.name));
+  let markerHandle = null;
   if (marker != null) {
-    svg.append(sv("line", { x1: X(marker), x2: X(marker), y1: m.t, y2: H - m.b, stroke: "var(--ink)", "stroke-width": 1.5, "stroke-dasharray": "4 3" }),
-      sv("text", { x: X(marker), y: m.t + 9, "text-anchor": "middle", style: "fill:var(--ink);font-weight:600" }, "θ"));
+    const markerLine = sv("line", { x1: X(marker), x2: X(marker), y1: m.t, y2: H - m.b, stroke: "var(--ink)", "stroke-width": 1.5, "stroke-dasharray": "4 3" });
+    const markerLabel = sv("text", { x: X(marker), y: m.t + 9, "text-anchor": "middle", style: `fill:var(--ink);font-weight:600${draggable ? ";pointer-events:none" : ""}` }, "θ");
+    svg.append(markerLine, markerLabel);
+    if (draggable) {
+      markerHandle = sv("rect", {
+        x: X(marker) - 12, y: 0, width: 24, height: H - m.b, fill: "transparent",
+        style: "cursor:ew-resize", tabindex: 0, role: "slider", "aria-label": "Порог θ (перетащите или используйте стрелки)",
+        "aria-valuemin": xmin, "aria-valuemax": xmax, "aria-valuenow": marker,
+      });
+      // append - ниже, после catcher: catcher закрывает собой всю область графика (для подсказки
+      // при наведении), и если добавить сюда же, он перекроет markerHandle и клик до неё не дойдёт.
+      hover(markerHandle, () => esc(GLOSS.theta) + " Перетащите, чтобы изменить.");
+      wireThetaHandle(markerHandle, {
+        min: xmin, max: xmax,
+        invX: (clientX) => { const r = svg.getBoundingClientRect(); return xmin + (((clientX - r.left) / r.width) * W - m.l) / (W - m.l - m.r) * (xmax - xmin); },
+        updateVisual: (t) => {
+          markerLine.setAttribute("x1", X(t)); markerLine.setAttribute("x2", X(t));
+          markerLabel.setAttribute("x", X(t)); markerHandle.setAttribute("x", X(t) - 12);
+        },
+        onSettle: onDragSettle || (() => {}),
+      });
+    }
   }
   // невидимый слой ловит указатель: подсказка со значениями ближайшей точки
   const catcher = sv("rect", { x: m.l, y: m.t, width: W - m.l - m.r, height: H - m.t - m.b, fill: "transparent", tabindex: 0 });
   const guide = sv("line", { y1: m.t, y2: H - m.b, stroke: "var(--muted)", "stroke-width": 1, opacity: 0 });
   svg.append(guide, catcher);
+  if (markerHandle) svg.append(markerHandle);
   const nearest = (ev) => {
     const r = svg.getBoundingClientRect(), px = ((ev.clientX - r.left) / r.width) * W;
     const xv = xmin + ((px - m.l) / (W - m.l - m.r)) * (xmax - xmin);
@@ -433,14 +529,15 @@ function renderHist() {
   }
   const share = (s, g) => (tot[s] ? grp[s][g] / tot[s] : 0);
   const ymax = Math.max(0.05, ...SRC.flatMap((s) => grp[s].map((_, g) => share(s, g)))) * 1.1;
-  const W = 640, H = 260, m = { l: 44, r: 12, t: 14, b: 34 }, iw = W - m.l - m.r;
+  const W = 640, H = 260, m = { l: 44, r: 12, t: 34, b: 34 }, iw = W - m.l - m.r;
   const X = (x) => m.l + x * iw, Y = (y) => H - m.b - (y / ymax) * (H - m.t - m.b);
   const svg = sv("svg", { viewBox: `0 0 ${W} ${H}`, class: "cloud", role: "img", "aria-label": "Гистограмма overlap у AI и человека" });
   for (let i = 0; i <= 4; i++) {
     const y = (ymax * i) / 4;
     svg.append(sv("line", { class: "gridl", x1: m.l, x2: W - m.r, y1: Y(y), y2: Y(y) }), sv("text", { x: m.l - 6, y: Y(y) + 4, "text-anchor": "end" }, (100 * y).toFixed(0) + "%"));
   }
-  svg.append(sv("rect", { x: X(state.theta), y: m.t, width: X(1) - X(state.theta), height: H - m.t - m.b, fill: "var(--grid)", opacity: 0.55 }));
+  const shade = sv("rect", { x: X(state.theta), y: m.t, width: X(1) - X(state.theta), height: H - m.t - m.b, fill: "var(--grid)", opacity: 0.55 });
+  svg.append(shade);
   const gw = iw / G;
   for (let g = 0; g < G; g++) {
     const lo = (g / G).toFixed(2), hi = ((g + 1) / G).toFixed(2);
@@ -454,8 +551,31 @@ function renderHist() {
   svg.append(sv("line", { x1: m.l, x2: W - m.r, y1: H - m.b, y2: H - m.b, stroke: "var(--axis)" }));
   for (const t of [0, 0.2, 0.4, 0.6, 0.8, 1]) svg.append(sv("text", { x: X(t), y: H - m.b + 16, "text-anchor": "middle" }, t.toFixed(1)));
   svg.append(sv("text", { x: m.l + iw / 2, y: H - 2, "text-anchor": "middle" }, "overlap (доля слов комментария, найденных в коде), корзины по 0.05"));
-  svg.append(sv("line", { x1: X(state.theta), x2: X(state.theta), y1: m.t, y2: H - m.b, stroke: "var(--ink)", "stroke-width": 1.5, "stroke-dasharray": "4 3" }),
-    sv("text", { x: X(state.theta), y: m.t - 2, "text-anchor": "middle", style: "fill:var(--ink);font-weight:600" }, "θ"));
+
+  // θ можно перетянуть прямо по гистограмме - за линию или за саму букву θ. Во время движения
+  // дёшево двигаем их сами и сразу пересчитываем графики, которые зависят от θ (KPI, чувствительность,
+  // функция комментария) - гистограмма своих столбиков от θ не меняет, поэтому её саму не трогаем;
+  // полный renderAll() - только один раз, при отпускании, для остальных, независимых от θ блоков.
+  const thetaLine = sv("line", { x1: X(state.theta), x2: X(state.theta), y1: m.t, y2: H - m.b, stroke: "var(--ink)", "stroke-width": 1.5, "stroke-dasharray": "4 3" });
+  // pointer-events:none на букве - иначе она, будучи нарисована поверх handle, сама перехватывает
+  // клик и он не доходит до зоны захвата под ней.
+  const thetaLabel = sv("text", { x: X(state.theta), y: m.t - 6, "text-anchor": "middle", style: "fill:var(--ink);font-weight:700;font-size:12px;pointer-events:none" }, "θ");
+  const handle = sv("rect", {
+    x: X(state.theta) - 12, y: Math.max(0, m.t - 24), width: 24, height: H - m.b - Math.max(0, m.t - 24), fill: "transparent",
+    style: "cursor:ew-resize", tabindex: 0, role: "slider", "aria-label": "Порог θ (перетащите или используйте стрелки)",
+    "aria-valuemin": 0.2, "aria-valuemax": 0.9, "aria-valuenow": state.theta,
+  });
+  svg.append(thetaLine, handle, thetaLabel);
+  hover(handle, () => esc(GLOSS.theta) + " Перетащите, чтобы изменить.");
+  wireThetaHandle(handle, {
+    invX: (clientX) => { const r = svg.getBoundingClientRect(); return (((clientX - r.left) / r.width) * W - m.l) / iw; },
+    updateVisual: (t) => {
+      thetaLine.setAttribute("x1", X(t)); thetaLine.setAttribute("x2", X(t));
+      thetaLabel.setAttribute("x", X(t)); handle.setAttribute("x", X(t) - 12);
+      shade.setAttribute("x", X(t)); shade.setAttribute("width", Math.max(0, X(1) - X(t)));
+    },
+    onSettle: () => { renderKpis(); renderSens(); renderMix(); },
+  });
   $("chart-hist").replaceChildren(svg);
 
   const rows = Array.from({ length: 10 }, (_, k) => ({ lo: k / 10, ai: share("ai", 2 * k) + share("ai", 2 * k + 1), hu: share("human", 2 * k) + share("human", 2 * k + 1) }));
@@ -475,7 +595,11 @@ function renderSens() {
   const grid = []; for (let i = 20; i <= 80; i++) grid.push(i / 100);   // шаг 0.01: ступеньки видны, а не сглажены наклонной линией
   const ser = SRC.map((s) => ({ name: NAME[s], color: `var(--${s})`, points: grid.map((t) => [t, mixAt(s, t).refShare ?? 0]) }));
   const ymax = Math.max(0.05, ...ser.flatMap((s) => s.points.map((p) => p[1]))) * 1.1;
-  lineChart($("chart-sens"), { series: ser, xmin: 0.2, xmax: 0.8, ymax, xticks: [.2, .3, .4, .5, .6, .7, .8], yfmt: (v) => (v == null ? "-" : (100 * v).toFixed(0) + "%"), xfmt: (v) => v.toFixed(2), marker: state.theta, xlabel: "порог θ", height: 230 });
+  lineChart($("chart-sens"), {
+    series: ser, xmin: 0.2, xmax: 0.8, ymax, xticks: [.2, .3, .4, .5, .6, .7, .8], yfmt: (v) => (v == null ? "-" : (100 * v).toFixed(0) + "%"),
+    xfmt: (v) => v.toFixed(2), marker: state.theta, xlabel: "порог θ", height: 230,
+    draggable: true, onDragSettle: () => { renderKpis(); renderHist(); renderMix(); },
+  });
 
   // Самый крутой обрыв у каждой линии - с объяснением, чтобы читатель не принял его за ошибку счёта.
   const cliffs = ser.map((s) => {
@@ -538,7 +662,7 @@ function renderDensity() {
 }
 
 function renderMix() {
-  $("legend-mix").replaceChildren(...CLASS.map(([, n, c]) => h("span", {}, h("span", { class: "dot", style: `background:${c}` }), n)));
+  $("legend-mix").replaceChildren(...CLASS.map(([k, n, c]) => h("span", {}, h("span", { class: "dot", style: `background:${c}` }), gt(k, n))));
   const root = $("chart-mix"); root.replaceChildren();
   const rows = [];
   for (const s of SRC) {
@@ -554,7 +678,7 @@ function renderMix() {
     root.append(h("div", { class: "hrow" }, h("div", {}, h("span", { class: "dot " + s }), NAME[s]), h("div", {}, track,
       h("div", { class: "val cap" }, `referential ${pct(m.refShare)} · explanatory ${pct(m.explShare)} (от определённых)`))));
   }
-  $("tbl-mix").replaceChildren(table(rows, [{ h: "Источник", f: (r) => NAME[r.s] }, ...CLASS.map(([k, n]) => ({ h: n, num: 1, f: (r) => `${r.vals[k].toLocaleString("ru")} (${pct(r.vals[k] / r.tot)})` }))]));
+  $("tbl-mix").replaceChildren(table(rows, [{ h: "Источник", f: (r) => NAME[r.s] }, ...CLASS.map(([k, n]) => ({ h: gt(k, n), num: 1, f: (r) => `${r.vals[k].toLocaleString("ru")} (${pct(r.vals[k] / r.tot)})` }))]));
 }
 
 /* ---------- облака слов ---------- */
@@ -615,20 +739,37 @@ function renderKinds() {
   const src = state.lang === "all" ? S.kinds.counts : Object.fromEntries(SRC.map((s) => [s, S.kinds.by_lang[state.lang][s]]));
   const totals = Object.fromEntries(SRC.map((s) => [s, Object.values(src[s]).reduce((a, b) => a + b, 0)]));
   const kinds = Object.keys(src.ai), mx = Math.max(0.01, ...kinds.flatMap((k) => SRC.map((s) => (totals[s] ? src[s][k] / totals[s] : 0))));
-  const rows = kinds.map((k) => ({ label: k, max: mx, ai: totals.ai ? src.ai[k] / totals.ai : 0, human: totals.human ? src.human[k] / totals.human : 0,
+  const rows = kinds.map((k) => ({ label: gt("kind_" + k, k), max: mx, ai: totals.ai ? src.ai[k] / totals.ai : 0, human: totals.human ? src.human[k] / totals.human : 0,
     tip: (s) => `<b>${NAME[s]} · ${k}</b><br>${src[s][k].toLocaleString("ru")} из ${totals[s].toLocaleString("ru")}` }));
   pairBars($("chart-kinds"), rows, (v) => pct(v));
-  $("tbl-kinds").replaceChildren(table(kinds.map((k) => ({ k })), [{ h: "Тип", f: (r) => r.k }, { h: "AI", num: 1, f: (r) => `${src.ai[r.k]} (${pct(src.ai[r.k] / (totals.ai || 1))})` }, { h: "Человек", num: 1, f: (r) => `${src.human[r.k]} (${pct(src.human[r.k] / (totals.human || 1))})` }]));
+  $("tbl-kinds").replaceChildren(table(kinds.map((k) => ({ k })), [{ h: "Тип", f: (r) => gt("kind_" + r.k, r.k) }, { h: "AI", num: 1, f: (r) => `${src.ai[r.k]} (${pct(src.ai[r.k] / (totals.ai || 1))})` }, { h: "Человек", num: 1, f: (r) => `${src.human[r.k]} (${pct(src.human[r.k] / (totals.human || 1))})` }]));
   const c = S.kinds.chi2;
   $("note-kinds").textContent = state.lang === "all" && c.p != null ? `χ² = ${c.chi2.toFixed(1)}, df = ${c.df}, p ${c.p < 0.001 ? "< 0.001" : "= " + c.p.toFixed(3)}, Cramér's V = ${c.cramers_v.toFixed(2)} (все языки).` : "Критерий считается по всем языкам.";
 }
+function groupChip(groupKey) {
+  const g = S.groups[groupKey] || {};
+  const sp = document.createElement("span");
+  sp.className = "grouptag"; sp.tabIndex = 0; sp.textContent = g.label_ru || groupKey || "-";
+  hover(sp, () => `${esc(g.gloss || "")}` + (g.source ? `<br><span style="opacity:.7">${esc(g.source)}</span>` : ""));
+  return sp;
+}
 function renderMarkers() {
-  const rows = S.markers.map((m) => ({ label: m.label, ai: (m.ai_per1k || 0) / 10, human: (m.human_per1k || 0) / 10, m }));
+  const grp = $("marker-group").value;
+  const list = S.markers.filter((m) => !grp || m.group === grp);
+  const rows = list.map((m) => ({ label: m.label_ru, ai: (m.ai_per1k || 0) / 10, human: (m.human_per1k || 0) / 10, m }));
   const mx = Math.max(0.5, ...rows.flatMap((r) => [r.ai, r.human]));
   rows.forEach((r) => { r.max = mx; r.badge = r.m.q != null && r.m.q < 0.05 ? "●" : ""; r.badgeTitle = `q = ${r.m.q?.toFixed(4)}`;
-    r.tip = (s) => `<b>${NAME[s]} · ${r.label}</b><br>${r[s].toFixed(1)} на 100 комментариев<br><span style="opacity:.8">${esc(r.m.note || "")}</span>`; });
+    const g = S.groups[r.m.group] || {};
+    r.tip = (s) => `<b>${NAME[s]} · ${esc(r.label)}</b> <span style="opacity:.7">(${esc(r.m.label)})</span><br>${r[s].toFixed(1)} на 100 комментариев<br><span style="opacity:.8">${esc(r.m.note || "")}</span>` +
+      (g.label_ru ? `<br><span style="opacity:.65">${esc(g.label_ru)}</span>` : ""); });
   pairBars($("chart-markers"), rows, (v) => v.toFixed(1));
-  $("tbl-markers").replaceChildren(table(S.markers, [{ h: "Маркер", f: (r) => r.label + (r.explanatory ? " (почему)" : "") }, { h: "AI, ‰", num: 1, f: (r) => fmt(r.ai_per1k, 1) }, { h: "Человек, ‰", num: 1, f: (r) => fmt(r.human_per1k, 1) }, { h: "OR", num: 1, f: (r) => fmt(r.odds_ratio) }, { h: "q", num: 1, f: (r) => (r.q == null ? "-" : r.q < 0.001 ? "< 0.001" : r.q.toFixed(3)) }]));
+  $("tbl-markers").replaceChildren(table(list, [
+    { h: "Маркер", f: (r) => r.label_ru + (r.explanatory ? " (почему)" : "") },
+    { h: "Группа", f: (r) => groupChip(r.group) },
+    { h: "AI, ‰", num: 1, f: (r) => fmt(r.ai_per1k, 1) },
+    { h: "Человек, ‰", num: 1, f: (r) => fmt(r.human_per1k, 1) },
+    { h: gt("or", "OR"), num: 1, f: (r) => fmt(r.odds_ratio) },
+    { h: gt("q", "q"), num: 1, f: (r) => (r.q == null ? "-" : r.q < 0.001 ? "< 0.001" : r.q.toFixed(3)) }]));
 }
 
 /* ---------- идиомы ---------- */
@@ -639,11 +780,17 @@ function renderIdioms() {
   let rows = S.idioms.filter((r) => (!cat || r.category === cat) && (!con || r.connotation === con)).map((r) => ({ ...r, total: r.ai_n + r.human_n }));
   const k = idiomSort.key; rows.sort((a, b) => ((a[k] ?? -1e9) > (b[k] ?? -1e9) ? 1 : -1) * idiomSort.dir || 0);
   const cols = [["label", "Идиома", 0], ["category", "Категория", 0], ["connotation", "Коннотация", 0], ["ai_per1k", "AI ‰", 1], ["human_per1k", "Человек ‰", 1], ["odds_ratio", "OR", 1], ["q", "q", 1], ["total", "Всего", 1]];
-  const head = h("tr", {}, cols.map(([key, t, num]) => h("th", { class: "sort" + (num ? " num" : ""), onclick: () => { idiomSort = { key, dir: idiomSort.key === key ? -idiomSort.dir : -1 }; renderIdioms(); }, title: "Сортировать" }, t + (idiomSort.key === key ? (idiomSort.dir < 0 ? " ▼" : " ▲") : ""))));
-  const body = rows.slice(0, 200).map((r) => h("tr", {}, h("td", { title: r.note || "" }, r.label), h("td", {}, r.category),
-    h("td", {}, h("span", { class: "chip", title: CONN[r.connotation][1] }, CONN[r.connotation][0] + " " + CONN[r.connotation][1])),
-    h("td", { class: "num" }, fmt(r.ai_per1k, 1)), h("td", { class: "num" }, fmt(r.human_per1k, 1)), h("td", { class: "num" }, fmt(r.odds_ratio)),
-    h("td", { class: "num" }, r.q == null ? "" : r.q < 0.001 ? "< 0.001" : r.q.toFixed(3)), h("td", { class: "num" }, r.total)));
+  const HINT = { odds_ratio: GLOSS.or, q: GLOSS.q };
+  const head = h("tr", {}, cols.map(([key, t, num]) => h("th", { class: "sort" + (num ? " num" : ""), onclick: () => { idiomSort = { key, dir: idiomSort.key === key ? -idiomSort.dir : -1 }; renderIdioms(); }, title: (HINT[key] ? HINT[key] + " " : "") + "Сортировать" }, t + (idiomSort.key === key ? (idiomSort.dir < 0 ? " ▼" : " ▲") : ""))));
+  const body = rows.slice(0, 200).map((r) => {
+    const g = S.groups[r.group] || {};
+    const catCell = h("span", { class: "gloss", tabindex: 0 }, r.category_ru || r.category);
+    hover(catCell, () => esc(g.gloss || "") + (g.source ? `<br><span style="opacity:.7">${esc(g.source)}</span>` : ""));
+    return h("tr", {}, h("td", { title: r.note || "" }, r.label), h("td", {}, catCell),
+      h("td", {}, h("span", { class: "chip", title: CONN[r.connotation][1] }, CONN[r.connotation][0] + " " + CONN[r.connotation][1])),
+      h("td", { class: "num" }, fmt(r.ai_per1k, 1)), h("td", { class: "num" }, fmt(r.human_per1k, 1)), h("td", { class: "num" }, fmt(r.odds_ratio)),
+      h("td", { class: "num" }, r.q == null ? "" : r.q < 0.001 ? "< 0.001" : r.q.toFixed(3)), h("td", { class: "num" }, r.total));
+  });
   $("idiom-table").replaceChildren(h("thead", {}, head), h("tbody", {}, body.length ? body : h("tr", {}, h("td", { colspan: 8, class: "muted" }, "Идиом с такими параметрами в корпусе не найдено."))));
   const c = S.connotation;
   $("idiom-conn-sum").textContent = `Комментариев с негативной коннотацией на 1000: AI ${fmt(c.ai.negative, 1)}, человек ${fmt(c.human.negative, 1)}.`;
@@ -666,12 +813,21 @@ function renderExamples() {
 function renderMisc() {
   const st = S.style, vf = S.verb_form;
   const rows = [["Средняя длина, слов", (s) => fmt(st[s].mean_words, 1)], ["Заканчивается точкой", (s) => pct(st[s].ends_with_period)], ["Начинается с заглавной", (s) => pct(st[s].starts_upper)],
-    ["Вопрос", (s) => pct(st[s].question)], ["Есть URL", (s) => pct(st[s].has_url)], ["Есть ссылка на issue/тикет", (s) => pct(st[s].has_issue_ref)],
+    ["Вопрос", (s) => pct(st[s].question)], [gt("url", "Есть URL"), (s) => pct(st[s].has_url)], [gt("issue", "Есть ссылка на issue/тикет"), (s) => pct(st[s].has_issue_ref)],
     ["Начинается с глагола (императив)", (s) => pct(vf[s].imperative)], ["Начинается с глагола (3-е лицо)", (s) => pct(vf[s].third_person)]];
   $("style-table").replaceChildren(table(rows, [{ h: "Признак", f: (r) => r[0] }, { h: "AI", num: 1, f: (r) => r[1]("ai") }, { h: "Человек", num: 1, f: (r) => r[1]("human") }]));
   const d = S.docs;
   const drows = [["Докстрингов", (s) => d[s].n], ["Средний overlap", (s) => fmt(d[s].overlap.mean)], ["Доля referential", (s) => pct(d[s].referential_share)], ["Начинаются с глагола 3-го лица", (s) => pct(d[s].verb_third_person)]];
   $("docs-table").replaceChildren(table(drows, [{ h: "", f: (r) => r[0] }, { h: "AI", num: 1, f: (r) => r[1]("ai") }, { h: "Человек", num: 1, f: (r) => r[1]("human") }]));
+}
+
+function renderGroupDefs() {
+  const order = ["discourse", "evidential", "stance", "directive", "code_convention", "attitude", "register", "jargon"];
+  const keys = [...order.filter((k) => S.groups[k]), ...Object.keys(S.groups).filter((k) => !order.includes(k))];
+  $("group-defs").replaceChildren(
+    h("p", {}, "Категории маркеров (lexicon/marker_categories.csv) и идиом (lexicon/idiom_categories.csv) сгруппированы по научным классификациям, а не свалены в одну кучу «прагматических маркеров». Группа и источник показаны в таблицах маркеров и идиом при наведении."),
+    ...keys.map((k) => h("p", {}, h("b", {}, S.groups[k].label_ru), " - ", S.groups[k].gloss,
+      S.groups[k].source ? h("span", { class: "muted" }, " (", S.groups[k].source, ")") : null)));
 }
 
 /* ---------- каркас ---------- */
@@ -681,7 +837,12 @@ function renderStatic() {
   if (S.demo) b.append(h("div", { class: "banner demo" }, "ДЕМО-ДАННЫЕ. Код и комментарии синтетические, написаны вручную под гипотезу. Дашборд показывает, что конвейер работает; результаты нельзя цитировать."));
   if (S.warnings.length) b.append(h("div", { class: "banner warn" }, h("b", {}, "Внимание: "), S.warnings.join(" · ")));
   const langs = $("lang"); langs.append(h("option", { value: "all" }, "все"), ...S.langs.map((l) => h("option", { value: l }, l)));
-  const cats = [...new Set(S.idioms.map((r) => r.category))].sort(); $("idiom-cat").append(h("option", { value: "" }, "все"), ...cats.map((c) => h("option", { value: c }, c)));
+  const catRu = Object.fromEntries(S.idioms.map((r) => [r.category, r.category_ru]));
+  const cats = [...new Set(S.idioms.map((r) => r.category))].sort();
+  $("idiom-cat").append(h("option", { value: "" }, "все"), ...cats.map((c) => h("option", { value: c }, catRu[c] || c)));
+  const groupRu = Object.fromEntries(S.markers.map((r) => [r.group, (S.groups[r.group] || {}).label_ru || r.group]));
+  const mgroups = [...new Set(S.markers.map((r) => r.group))];
+  $("marker-group").append(h("option", { value: "" }, "все"), ...mgroups.map((g) => h("option", { value: g }, groupRu[g] || g)));
   const c = S.composition;
   const lines = SRC.map((s) => { const x = c[s]; return `${NAME[s]}: наблюдений ${x.observed}, исключено (лицензии ${x.excluded_license || 0}, директивы ${x.excluded_directive || 0}, код ${x.excluded_code || 0}, пустые ${x.excluded_empty || 0}), не английский ${x.non_english || 0}, дубли ${x.duplicate || 0}, сверх лимита на репозиторий ${x.capped_per_repo || 0}, в анализе ${x.analyzed}.`; });
   $("limits").append(h("p", {}, ...lines.map((l) => [l, h("br")])),
@@ -696,6 +857,7 @@ $("theta").addEventListener("input", (e) => { state.theta = +e.target.value; ren
 for (const [id, val] of [["m-strict", "strict"], ["m-ext", "ext"]]) $(id).addEventListener("click", () => { state.metric = val; $("m-strict").setAttribute("aria-pressed", val === "strict"); $("m-ext").setAttribute("aria-pressed", val === "ext"); renderAll(); });
 for (const [id, val] of [["w-dist", "dist"], ["w-freq", "freq"]]) $(id).addEventListener("click", () => { state.wmode = val; $("w-dist").setAttribute("aria-pressed", val === "dist"); $("w-freq").setAttribute("aria-pressed", val === "freq"); renderClouds(); });
 $("idiom-cat").addEventListener("change", renderIdioms); $("idiom-con").addEventListener("change", renderIdioms);
+$("marker-group").addEventListener("change", renderMarkers);
 $("ex-src").addEventListener("change", () => { state.exN = 0; renderExamples(); }); $("ex-band").addEventListener("change", () => { state.exN = 0; renderExamples(); });
 $("ex-more").addEventListener("click", () => { state.exN++; renderExamples(); });
 $("themeBtn").addEventListener("click", () => {
@@ -703,7 +865,9 @@ $("themeBtn").addEventListener("click", () => {
   document.documentElement.setAttribute("data-theme", dark ? "light" : "dark"); $("themeBtn").setAttribute("aria-pressed", !dark); $("themeBtn").textContent = dark ? "Тёмная тема" : "Светлая тема";
 });
 $("theta").value = state.theta;
-renderStatic(); renderAll(); renderClouds(); renderMarkers(); renderIdioms(); renderMisc();
+hover($("gloss-demo"), () => esc(GLOSS.gloss));
+hover($("doc-title-gloss"), () => esc(GLOSS.kind_doc));
+renderStatic(); renderAll(); renderClouds(); renderMarkers(); renderIdioms(); renderMisc(); renderGroupDefs();
 </script>
 </body>
 </html>

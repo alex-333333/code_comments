@@ -86,6 +86,8 @@ class Marker:
     forms: list[str]
     note: str
     regex: re.Pattern | None = None
+    group: str = ""       # ключ в Lexicon.groups: к какой научной категории относится маркер
+    label_ru: str = ""    # короткое понятное название для дашборда, вместо технического category
 
 
 @dataclass
@@ -95,6 +97,8 @@ class Idiom:
     category: str
     connotation: str
     note: str
+    group: str = ""        # ключ в Lexicon.groups
+    category_ru: str = ""  # короткое понятное название категории для дашборда
 
 
 @dataclass
@@ -106,6 +110,9 @@ class Lexicon:
     paraphrases: dict[str, set[str]]
     idiom_regex: re.Pattern | None = None
     idiom_lookup: dict[str, str] = field(default_factory=dict)
+    # group -> {label_ru, gloss, source}: научное обоснование категорий маркеров и идиом
+    # (lexicon/groups.csv), общее для marker_categories.csv и idiom_categories.csv.
+    groups: dict[str, dict[str, str]] = field(default_factory=dict)
 
 
 def _read_lines(path: Path) -> list[str]:
@@ -115,6 +122,14 @@ def _read_lines(path: Path) -> list[str]:
     ]
 
 
+def _read_category_map(path: Path) -> dict[str, dict[str, str]]:
+    """category -> строка (group, label_ru...) из маленького файла-классификатора."""
+    if not path.exists():
+        return {}
+    with open(path, encoding="utf-8", newline="") as f:
+        return {row["category"]: row for row in csv.DictReader(f)}
+
+
 @lru_cache(maxsize=4)
 def load_lexicon(directory: str | None = None) -> Lexicon:
     d = Path(directory) if directory else LEXICON_DIR
@@ -122,19 +137,33 @@ def load_lexicon(directory: str | None = None) -> Lexicon:
     stopwords = {normalize(w).lower() for w in _read_lines(d / "stopwords.txt")}
     code_verbs = {w.lower() for w in _read_lines(d / "code_verbs.txt")}
 
+    groups: dict[str, dict[str, str]] = {}
+    with open(d / "groups.csv", encoding="utf-8", newline="") as f:
+        for row in csv.DictReader(f):
+            groups[row["group"]] = {"label_ru": row["label_ru"], "gloss": row["gloss"], "source": row.get("source", "")}
+
+    # Научная классификация категорий (group, label_ru) живёт отдельно от самих словарей
+    # маркеров/идиом: так можно переклассифицировать без риска задеть формы или коннотацию.
+    marker_cats = _read_category_map(d / "marker_categories.csv")
+    idiom_cats = _read_category_map(d / "idiom_categories.csv")
+
     markers: list[Marker] = []
     with open(d / "pragmatic_markers.csv", encoding="utf-8", newline="") as f:
         for row in csv.DictReader(f):
             forms = [x for x in row["forms"].split("|") if x]
+            mc = marker_cats.get(row["category"], {})
             markers.append(Marker(row["category"], row["explanatory"].strip() == "1", forms,
-                                  row.get("note", ""), _form_regex(forms)))
+                                  row.get("note", ""), _form_regex(forms),
+                                  mc.get("group", ""), mc.get("label_ru") or row["category"]))
 
     idioms: list[Idiom] = []
     lookup: dict[str, str] = {}
     with open(d / "idioms.csv", encoding="utf-8", newline="") as f:
         for row in csv.DictReader(f):
             forms = [x for x in row["forms"].split("|") if x]
-            idioms.append(Idiom(row["lemma"], forms, row["category"], row["connotation"], row.get("note", "")))
+            ic = idiom_cats.get(row["category"], {})
+            idioms.append(Idiom(row["lemma"], forms, row["category"], row["connotation"], row.get("note", ""),
+                                ic.get("group", ""), ic.get("label_ru") or row["category"]))
             for fm in forms:
                 # При совпадении формы у двух лемм побеждает первая по файлу:
                 # порядок в CSV - осознанный приоритет, а не случайность.
@@ -147,7 +176,7 @@ def load_lexicon(directory: str | None = None) -> Lexicon:
             paraphrases.setdefault(row["code_token"].lower(), set()).update(
                 w for w in row["comment_words"].split("|") if w)
 
-    return Lexicon(stopwords, code_verbs, markers, idioms, paraphrases, idiom_regex, lookup)
+    return Lexicon(stopwords, code_verbs, markers, idioms, paraphrases, idiom_regex, lookup, groups)
 
 
 # --- стемминг и токенизация -------------------------------------------------

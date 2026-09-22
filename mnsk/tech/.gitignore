@@ -1,3 +1,8 @@
 *
 
+!demo_work/
+demo_work/*
 !demo_work/dashboard.html
+
+!lexicon/
+!lexicon/**

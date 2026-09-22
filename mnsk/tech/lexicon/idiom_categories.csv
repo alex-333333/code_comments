@@ -1,0 +1,7 @@
+category,group,label_ru
+debt,code_convention,технический долг
+provisional,code_convention,временное решение
+tech_idiom,jargon,устойчивое выражение
+evaluative_pos,attitude,положительная оценка
+expletive,attitude,эмоциональная реакция
+llm_register,register,регистр ИИ-текста

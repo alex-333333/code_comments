@@ -210,7 +210,8 @@ stderr.
 | `overlap.describe`, `overlap.mann_whitney` | описательные статистики, критерий Манна-Уитни, Cliff's δ |
 | `referential` | `mix`, `by_lang`, `sensitivity` (θ от 0.20 до 0.80), `bootstrap` (разница долей и 95 % ДИ) |
 | `kinds` | распределение типов, χ², Cramér's V, по языкам |
-| `markers`, `idioms` | таблицы с частотами, OR, p, q (BH) |
+| `markers`, `idioms` | таблицы с частотами, OR, p, q (BH); плюс `group`, `label_ru`/`category_ru` - научная группа и понятное название, см. [05-lexicons.md](05-lexicons.md#научная-классификация-категорий-marker_categoriescsv-idiom_categoriescsv-groupscsv) |
+| `groups` | group → `{label_ru, gloss, source}` - расшифровка и академическая ссылка для каждой группы маркеров/идиом |
 | `connotation`, `idiom_categories`, `sentiment`, `style`, `verb_form`, `docs` | остальные блоки |
 | `density` | плотность комментариев: `available`, `per_source`, `by_lang`, `by_tool`, `bootstrap` (`all` и `main`, то есть без doc). В блоке: `per100` (комментариев на 100 добавленных строк), `per100_nonblank`, `line_share`, `main_per100`, `doc_per100`, `by_kind_per100`, `repo_median_per100`; в `bootstrap` лежат `diff` (на 100 строк), `ratio` (AI / human) и их 95 % интервалы по репозиториям |
 | `words` | частоты, «характерные» слова, биграммы |

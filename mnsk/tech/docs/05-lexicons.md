@@ -21,13 +21,49 @@
 
 | Колонка | Смысл |
 |---|---|
-| `category` | название категории |
+| `category` | название категории (внутренний ключ, не меняется - на него завязаны тесты и `metrics.marker_hits`) |
 | `explanatory` | `1`: маркер «почему», из-за него комментарий становится *explanatory*; `0`: только признак |
 | `forms` | формы через `\|`; поиск без учёта регистра, по границам слов; дефис равен пробелу |
 | `note` | пояснение (показывается в подсказках дашборда) |
 
 Категории: `cause`, `purpose`, `contrast`, `warning`, `condition`, `history`, `reference`, `tag` (все `1`);
 `hedge`, `modal`, `first_person`, `negation` (все `0`).
+
+### Научная классификация категорий: `marker_categories.csv`, `idiom_categories.csv`, `groups.csv`
+
+Раньше все 12 категорий `pragmatic_markers.csv` были свалены в дашборде в одну кучу под названием
+«прагматические маркеры», и часть из них (например `first_person`) вообще не является дискурсивным маркером
+в лингвистическом смысле - это и была правка Sofia: непонятно, что такое `history`/`tag`, и почему
+`first_person` вообще здесь. Решение - не переписывать сами словари (формы и `note` в `pragmatic_markers.csv`
+и `idioms.csv` не трогаются), а добавить отдельный тонкий слой классификации:
+
+- **`marker_categories.csv`** (`category,group,label_ru`) - для каждой из 12 категорий маркеров: к какой
+  научной группе она относится и как называется по-русски простыми словами (например `first_person` →
+  группа `stance`, label_ru «личное присутствие автора»).
+- **`idiom_categories.csv`** (`category,group,label_ru`) - то же для 6 категорий `idioms.csv` (например
+  `debt` → группа `code_convention`, label_ru «технический долг»).
+- **`groups.csv`** (`group,label_ru,gloss,source`) - сами группы, по одной строке на группу, с пояснением и
+  академической ссылкой. Общий файл для маркеров и идиом, чтобы цитата не повторялась на каждую категорию.
+
+`metrics.load_lexicon()` соединяет эти файлы с основными словарями по `category` и кладёт результат в поля
+`Marker.group`/`Marker.label_ru`, `Idiom.group`/`Idiom.category_ru` и в `Lexicon.groups`. Если категория есть
+в `pragmatic_markers.csv`/`idioms.csv`, но отсутствует в файле-классификаторе, код не падает: `group` останется
+пустым, а `label_ru`/`category_ru` откатится на исходное английское имя категории.
+
+Группы (см. `groups.csv` за полным текстом и ссылками):
+
+| group | Что это | Источник |
+|---|---|---|
+| `discourse` | связывает мысль комментария с рассуждением (причина, цель, противопоставление, условие) | Fraser (1999); Swan, *Practical English Usage* |
+| `evidential` | отсылка к внешнему источнику (документация, issue, спецификация) | Hyland (2005) - evidentials |
+| `stance` | авторская позиция: уверенность, личное участие, долженствование | Hyland (2005) - hedges, self-mention |
+| `directive` | обращение к будущему читателю: предупреждение, запрет | Searle (1969), *Speech Acts* |
+| `code_convention` | конвенция индустрии, не лингвистическая категория: признание технического долга | Potdar, Shihab (2014) - Self-Admitted Technical Debt |
+| `attitude` | эмоциональная или оценочная реакция автора | Hyland (2005) - attitude markers |
+| `register` | слова-«тики», предположительно частые в текстах LLM | Liang et al. (2024) - Monitoring AI-Modified Content |
+| `jargon` | устойчивое выражение индустрии без привязки к конкретной таксономии | - (осознанно без цитаты) |
+
+Это тоже черновик: `label_ru` и границы групп стоит свериться с Sofia так же, как и сами словари, до заморозки.
 
 Особые случаи (они зашиты в `metrics.py`):
 - **Теги** `BUG`, `OPTIMIZE`, `REVIEW`, `HACK` считаются только **заглавными** (иначе «review the diff» не тег);
@@ -44,7 +80,7 @@
 |---|---|
 | `lemma` | название записи (так она называется в таблице) |
 | `forms` | все поверхностные формы через `\|` |
-| `category` | `debt`, `expletive`, `provisional`, `tech_idiom`, `evaluative_pos`, `llm_register` |
+| `category` | `debt`, `expletive`, `provisional`, `tech_idiom`, `evaluative_pos`, `llm_register` (внутренний ключ; понятное название и научная группа - в `idiom_categories.csv`, см. выше) |
 | `connotation` | `negative` / `neutral` / `positive` |
 | `note` | пояснение |
 
