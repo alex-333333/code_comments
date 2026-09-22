@@ -639,7 +639,7 @@ function renderDensity() {
   const bars = h("div", { id: "density-bars" });
   root.replaceChildren(top, h("h3", { style: "font-size:14px;margin:14px 0 4px" }, "Из каких комментариев складывается плотность (на 100 добавленных строк)"),
     h("div", { class: "legend" }, h("span", {}, h("span", { class: "dot ai" }), "AI"), h("span", {}, h("span", { class: "dot human" }), "Человек")), bars);
-  pairBars(bars, kinds.map((k) => ({ label: k, max: mx, ai: A.by_kind_per100[k] || 0, human: Hm.by_kind_per100[k] || 0,
+  pairBars(bars, kinds.map((k) => ({ label: gt("kind_" + k, k), max: mx, ai: A.by_kind_per100[k] || 0, human: Hm.by_kind_per100[k] || 0,
     tip: (s) => `<b>${NAME[s]} · ${k}</b><br>${f1((s === "ai" ? A : Hm).by_kind_per100[k])} на 100 строк` })), (v) => v.toFixed(1));
 
   const rows = [["Файлов", (m) => m.files.toLocaleString("ru")], ["Репозиториев", (m) => m.repos], ["Добавлено строк", (m) => m.added_lines.toLocaleString("ru")],
