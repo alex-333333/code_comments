@@ -6,3 +6,6 @@ demo_work/*
 
 !lexicon/
 !lexicon/**
+
+!assets/
+!assets/**
