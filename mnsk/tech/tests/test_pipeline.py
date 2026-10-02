@@ -122,13 +122,6 @@ def test_fonts_are_inlined_and_missing_ones_request_nothing(tmp_path):
     assert dashboard.font_css(tmp_path / "нет такой папки") == ""
 
 
-def test_dashboard_accent_is_validated(built):
-    out = dashboard.build(built["results"], built["work"] / "dash_blue.html", accent="blue")
-    assert '"accent": "blue"' in out.read_text(encoding="utf-8")
-    with pytest.raises(SystemExit):
-        dashboard.build(built["results"], built["work"] / "dash_bad.html", accent="red")
-
-
 def test_second_extract_run_is_reproducible(built):
     a = (built["corpus"] / "comments.jsonl").read_text(encoding="utf-8")
     extract_comments.main(["--corpus", str(built["corpus"])])

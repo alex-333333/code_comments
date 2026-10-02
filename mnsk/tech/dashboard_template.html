@@ -6,19 +6,21 @@
 <title>Комментарии AI и человека</title>
 <style>
 /*__FONTS__*/
-/* Тема «НГУ ночь». Фон почти чёрный, акцент НГУ (зелёный или синий,
-   задаётся при сборке флагом --accent) идёт только заливкой: логотип, ползунок, активный пункт меню.
-   AI - всегда лаванда, человек - всегда янтарь, во всех графиках. Пара проверена на дальтонизм (ΔE 29).
-   К данным акцент не подпускаю: зелёный НГУ при дейтеранопии неотличим от янтаря. */
+/* Тема «НГУ ночь». Фон почти чёрный, цвета взяты у сноски из логотипа НГУ, у каждого своя роль.
+   Зелёная сноска - акцент интерфейса, только заливкой: логотип, ползунок, активный пункт меню.
+   Синяя сноска - AI, малиновый (оттенок красной сноски) - человек, во всех графиках.
+   Синий я затемнил под тёмный фон, иначе он перетягивал внимание. Пару проверил на дальтонизм
+   (ΔE 14.7 при требовании 8) и на контраст с карточкой (не ниже 4:1). Акцент к данным не подпускаю,
+   чтобы зелёный читался как интерфейс, а не как третья серия. */
 :root {
   color-scheme: dark;
   --acc: #72C81E;
   --bg: #141517; --side: #0F1012; --card: #1D1F22; --card2: #26282C; --code: #111214;
   --line: #2A2D31; --line2: #33363C; --grid: #2C2F33; --axis: #6B6F76;
   --ink: #F2F2F2; --ink2: #C9CCD1; --muted: #A9ADB3; --on-acc: #111214;
-  --ai: #8A7BEE; --human: #C4841F;
-  --ai-t: rgba(138,123,238,.32); --ai-t2: rgba(138,123,238,.15);
-  --human-t: rgba(196,132,31,.36); --human-t2: rgba(196,132,31,.16);
+  --ai: #01A5CC; --human: #E3406A;
+  --ai-t: rgba(1,165,204,.32); --ai-t2: rgba(1,165,204,.15);
+  --human-t: rgba(227,64,106,.32); --human-t2: rgba(227,64,106,.15);
   /* Функция комментария: четыре ступени серого, а не оттенки. Любая пара оттенков здесь либо сливалась
      при дальтонизме, либо путалась с цветами AI и человека. Доли подписаны прямо на сегментах. */
   --c-ref: #E6E8EB; --c-expl: #9EA3AB; --c-other: #5A5E65; --c-none: #34373C;
@@ -461,9 +463,6 @@ const S = DATA.summary, EX = DATA.examples;
 const SRC = ["ai", "human"], NAME = { ai: "AI", human: "Человек" };
 const $ = (id) => document.getElementById(id);
 const NS = "http://www.w3.org/2000/svg";
-const ACCENTS = { green: "#72C81E", blue: "#00BDE8" };
-const ACC = ACCENTS[DATA.accent] || ACCENTS.green;
-document.documentElement.style.setProperty("--acc", ACC);
 const state = { lang: "all", metric: "strict", theta: S.theta, wmode: "dist", exN: 0, exSrc: "ai", exBand: "high" };
 const fmt = (x, d = 2) => (x == null ? "-" : x.toFixed(d));
 const pct = (x, d = 1) => (x == null ? "-" : (100 * x).toFixed(d) + "%");
@@ -1166,8 +1165,10 @@ document.addEventListener("keydown", (e) => {
 
 /* ---------- экспорт ---------- */
 // Картинки для отчёта выгружаются в светлой теме «НГУ день»: тёмные графики на белой странице отчёта выглядят тяжело.
-const LIGHT = { "--ai": "#6A58D6", "--human": "#D0741C", "--ink": "#1E1F22", "--ink2": "#3D4046", "--muted": "#5E6167", "--grid": "#E6E7EA",
-  "--axis": "#9EA2A8", "--card": "#FFFFFF", "--acc": ACC, "--on-acc": "#1E1F22" };
+// Синий и малиновый здесь темнее, чем в «ночи»: у фирменного синего на белом контраст всего 2.2.
+const LIGHT = { "--ai": "#09819F", "--human": "#CD2859", "--ink": "#1E1F22", "--ink2": "#3D4046", "--muted": "#5E6167", "--grid": "#E6E7EA",
+  "--axis": "#9EA2A8", "--card": "#FFFFFF", "--acc": getComputedStyle(document.documentElement).getPropertyValue("--acc").trim(),
+  "--on-acc": "#1E1F22" };
 function download(blob, name) {
   const a = h("a", { href: URL.createObjectURL(blob), download: name }); document.body.append(a); a.click();
   setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
